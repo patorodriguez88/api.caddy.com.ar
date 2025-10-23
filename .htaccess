@@ -1,33 +1,36 @@
-
+# ---- Raíz: redirigir a /public y proteger carpetas ----
 RewriteEngine On
 
-# esta lineas son para quitar la ext .php
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_FILENAME}.php -f
-RewriteRule ^(.*)$ $1.php
+# Permitir ACME/SSL desde la raíz
+RewriteRule ^\.well-known/acme-challenge/ - [L]
 
-# esta lineas son para quitar la ext .html
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_FILENAME}.html -f
-RewriteRule ^(.*)$ $1.html
+# Bloquear acceso directo a código interno
+RewriteRule ^(src|vendor)/ - [F,L]
 
-
-# Si la ruta no es un archivo existente, ni una carpeta
-# Reescribir al index
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.+?)/?$ index.php?url=$1 [L,QSA]
-
-# Requiere mod_headers y mod_rewrite
-Header always set Access-Control-Allow-Origin "https://caddy.com.ar"
-Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-API-Key"
-Header always set Access-Control-Max-Age "86400"
-# Solo si vas a usar cookies/credenciales (sino, omite esta línea)
-# Header always set Access-Control-Allow-Credentials "true"
-Header always set Vary "Origin"
-
-RewriteEngine On
-# Responder a preflight sin pasar a tu app
+# Preflight CORS directo desde la raíz
 RewriteCond %{REQUEST_METHOD} =OPTIONS
 RewriteRule ^ - [R=204,L]
+
+# Si piden la raíz, servir /public/
+RewriteRule ^$ public/ [L]
+
+# Si NO existe el archivo/carpeta en la raíz pero SÍ existe en /public, reescribir allí
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{DOCUMENT_ROOT}/public/$1 -f [OR]
+RewriteCond %{DOCUMENT_ROOT}/public/$1 -d
+RewriteRule ^(.*)$ public/$1 [L]
+
+# (Opcional) Seguridad extra
+<FilesMatch "\.(env|ini|ya?ml|json|lock|sql|bak)$">
+  Require all denied
+</FilesMatch>
+
+# CORS básico desde raíz (se hereda si no lo repetís en /public)
+<IfModule mod_headers.c>
+  Header always set Access-Control-Allow-Origin "https://caddy.com.ar"
+  Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+  Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-API-Key"
+  Header always set Access-Control-Max-Age "86400"
+  Header always set Vary "Origin"
+</IfModule>
