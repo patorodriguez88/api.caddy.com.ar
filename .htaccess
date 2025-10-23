@@ -12,7 +12,7 @@ RewriteCond %{REQUEST_METHOD} =OPTIONS
 RewriteRule ^ - [R=204,L]
 
 # Si piden la raíz, servir /public/
-RewriteRule ^$ public/ [L]
+# RewriteRule ^$ public/ [L]
 
 # Si NO existe el archivo/carpeta en la raíz pero SÍ existe en /public, reescribir allí
 RewriteCond %{REQUEST_FILENAME} !-f
