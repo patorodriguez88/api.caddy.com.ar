@@ -11,10 +11,10 @@ class Db
         static $pdo = null;
         if ($pdo) return $pdo;
 
-        $host = 'localhost';
+        $host = 'ftp.dintersa.com.ar';
         $db = 'tu_db';
-        $user = 'tu_user';
-        $pass = 'tu_pass';
+        $user = 'dinter6_usuarioweb';
+        $pass = 'usuarioelectronico';
         $dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
         $pdo = new PDO($dsn, $user, $pass, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,

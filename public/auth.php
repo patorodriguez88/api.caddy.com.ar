@@ -38,6 +38,7 @@ if (!$row || (string)$row['Estado'] !== 'Activo' || empty($row['password_hash'])
 
 // OK → Access (15m) + Refresh (30d rotativo)
 $access  = Jwt::issueAccessToken((int)$row['id']);
+
 $refresh = AuthService::issueRefresh($pdo, (int)$row['id']);
 
 echo json_encode([
