@@ -1,0 +1,33 @@
+
+RewriteEngine On
+
+# esta lineas son para quitar la ext .php
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.*)$ $1.php
+
+# esta lineas son para quitar la ext .html
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^(.*)$ $1.html
+
+
+# Si la ruta no es un archivo existente, ni una carpeta
+# Reescribir al index
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.+?)/?$ index.php?url=$1 [L,QSA]
+
+# Requiere mod_headers y mod_rewrite
+Header always set Access-Control-Allow-Origin "https://caddy.com.ar"
+Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-API-Key"
+Header always set Access-Control-Max-Age "86400"
+# Solo si vas a usar cookies/credenciales (sino, omite esta línea)
+# Header always set Access-Control-Allow-Credentials "true"
+Header always set Vary "Origin"
+
+RewriteEngine On
+# Responder a preflight sin pasar a tu app
+RewriteCond %{REQUEST_METHOD} =OPTIONS
+RewriteRule ^ - [R=204,L]
