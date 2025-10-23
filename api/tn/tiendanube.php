@@ -131,7 +131,11 @@ $totalCaddy     = (float) ($r['Total']  ?? 0);
 $fechaEntregaAR = (string)($r['Fecha_Entrega'] ?? ''); // “Lunes”, “Martes”, etc.
 
 // (Opcional) aplicar tu lógica de cantidad
-$precioCalculado = calcularTarifa($totalCaddy, max(1, $totalQty));
+if ($esFlex) {
+    $precioCalculado = (float)$totalCaddy; // siempre tarifa base 1 servicio
+} else {
+    $precioCalculado = calcularTarifa($totalCaddy, max(1, $totalQty));
+}
 
 // Fechas de promesa (usa tus helpers)
 $minDate = date('Y-m-d\TH:i:sO'); // ahora
