@@ -12,7 +12,7 @@ class Db
         if ($pdo) return $pdo;
 
         $host = 'ftp.dintersa.com.ar';
-        $db = 'tu_db';
+        $db = 'dinter6_triangular';
         $user = 'dinter6_usuarioweb';
         $pass = 'usuarioelectronico';
         $dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
