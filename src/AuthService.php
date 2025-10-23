@@ -9,7 +9,7 @@ class AuthService
 {
     public static function findUserByUsuario(PDO $pdo, string $usuario): ?array
     {
-        $q = $pdo->prepare("SELECT id, Estado, password_hash FROM Usuarios WHERE Usuario=? LIMIT 1");
+        $q = $pdo->prepare("SELECT id, Estado, password_hash FROM usuarios WHERE Usuario=? LIMIT 1");
         $q->execute([$usuario]);
         $r = $q->fetch();
         return $r ?: null;
