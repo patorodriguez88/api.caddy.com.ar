@@ -14,5 +14,5 @@ jobs:
         server: api.caddy.com.ar
         username: dinter6
         password: ${{ secrets.FTP_PASSWORD }}
-        server-dir: /api.caddy.com.ar/
+        server-dir: /api.caddy.com.ar/api
         timeout: 60000
