@@ -23,6 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
     }
     echo json_encode($datosArray);
 } else {
+
     header('Content-Type: application/json');
     $datosArray = $_respuestas->error_405();
     echo json_encode($datosArray);
