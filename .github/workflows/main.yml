@@ -11,8 +11,6 @@ jobs:
     - name: 📂 Sync files
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
-        server: api.caddy.com.ar
-        username: dinter6
-        password: ${{ secrets.FTP_PASSWORD }}
-        server-dir: /api.caddy.com.ar/api
-        timeout: 60000
+        server: dintersa.com.ar
+        username: api@api.caddy.com.ar
+        password: ${{ secrets.FTP_SECRET }}
