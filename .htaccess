@@ -1,5 +1,14 @@
 # ---- Raíz: redirigir a /public y proteger carpetas ----
 RewriteEngine On
+# esta lineas son para quitar la ext .php
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.*)$ $1.php
+
+# esta lineas son para quitar la ext .html
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^(.*)$ $1.html
 
 # Permitir ACME/SSL desde la raíz
 RewriteRule ^\.well-known/acme-challenge/ - [L]
@@ -15,11 +24,11 @@ RewriteRule ^ - [R=204,L]
 # RewriteRule ^$ public/ [L]
 
 # Si NO existe el archivo/carpeta en la raíz pero SÍ existe en /public, reescribir allí
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{DOCUMENT_ROOT}/public/$1 -f [OR]
-RewriteCond %{DOCUMENT_ROOT}/public/$1 -d
-RewriteRule ^(.*)$ public/$1 [L]
+# RewriteCond %{REQUEST_FILENAME} !-f
+# RewriteCond %{REQUEST_FILENAME} !-d
+# RewriteCond %{DOCUMENT_ROOT}/public/$1 -f [OR]
+# RewriteCond %{DOCUMENT_ROOT}/public/$1 -d
+# RewriteRule ^(.*)$ public/$1 [L]
 
 # (Opcional) Seguridad extra
 <FilesMatch "\.(env|ini|ya?ml|json|lock|sql|bak)$">
