@@ -88,8 +88,11 @@ foreach ($items as $it) {
 $esFlex = (ctype_digit($postal_code) && (int)$postal_code >= 5000 && (int)$postal_code <= 5023);
 
 // ===== Llamado a tu API de Caddy =====
+
+// "Token" => "24c2862db2fb1f807e3f18c9374e813e",
+
 $payloadCaddy = [
-    "Token" => "24c2862db2fb1f807e3f18c9374e813e",
+    "Token" => "4a031caee2e91950fcfd3048e38753ac",
     "flex"  => $esFlex ? "1" : "0",
     "Destination" => [["Localidad" => "Destino", "CodigoPostal" => $postal_code]],
     "Service" => [["Cantidad" => 1, "Servicio" => 1, "ValorDeclarado" => (string)$totalPrice]],
