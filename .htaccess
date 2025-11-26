@@ -1,14 +1,17 @@
-# ---- Raíz: redirigir a /public y proteger carpetas ----
 RewriteEngine On
-# esta lineas son para quitar la ext .php
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_FILENAME}.php -f
-RewriteRule ^(.*)$ $1.php
 
-# esta lineas son para quitar la ext .html
-RewriteCond %{REQUEST_FILENAME} !-d
+# 1) No tocar si es archivo o carpeta existente
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# 2) Quitar la ext .php
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.+)$ $1.php [L,QSA]
+
+# 3) Quitar la ext .html
 RewriteCond %{REQUEST_FILENAME}.html -f
-RewriteRule ^(.*)$ $1.html
+RewriteRule ^(.+)$ $1.html [L,QSA]
 
 # Permitir ACME/SSL desde la raíz
 RewriteRule ^\.well-known/acme-challenge/ - [L]
@@ -20,22 +23,10 @@ RewriteRule ^(src|vendor)/ - [F,L]
 RewriteCond %{REQUEST_METHOD} =OPTIONS
 RewriteRule ^ - [R=204,L]
 
-# Si piden la raíz, servir /public/
-# RewriteRule ^$ public/ [L]
-
-# Si NO existe el archivo/carpeta en la raíz pero SÍ existe en /public, reescribir allí
-# RewriteCond %{REQUEST_FILENAME} !-f
-# RewriteCond %{REQUEST_FILENAME} !-d
-# RewriteCond %{DOCUMENT_ROOT}/public/$1 -f [OR]
-# RewriteCond %{DOCUMENT_ROOT}/public/$1 -d
-# RewriteRule ^(.*)$ public/$1 [L]
-
-# (Opcional) Seguridad extra
 <FilesMatch "\.(env|ini|ya?ml|json|lock|sql|bak)$">
   Require all denied
 </FilesMatch>
 
-# CORS básico desde raíz (se hereda si no lo repetís en /public)
 <IfModule mod_headers.c>
   Header always set Access-Control-Allow-Origin "https://caddy.com.ar"
   Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
