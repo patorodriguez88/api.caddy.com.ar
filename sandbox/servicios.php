@@ -1,4 +1,13 @@
 <?php
+file_put_contents(
+    __DIR__ . '/debug_servicios.log',
+    date('Y-m-d H:i:s') . PHP_EOL .
+        'METHOD: ' . $_SERVER['REQUEST_METHOD'] . PHP_EOL .
+        'GET: ' . print_r($_GET, true) . PHP_EOL .
+        'POST: ' . print_r($_POST, true) . PHP_EOL .
+        str_repeat('-', 50) . PHP_EOL,
+    FILE_APPEND
+);
 require_once 'clases/respuestas.class.php';
 require_once 'clases/servicios.class.php';
 
