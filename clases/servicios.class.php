@@ -795,7 +795,7 @@ class servicios extends conexion
 
 
 
-    private function enviar_mail()
+    private function enviar_mail($codigoPostal)
     {
         // Varios destinatarios
         $para  = $this->email; // atención a la coma
