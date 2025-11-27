@@ -1,17 +1,14 @@
 <?php
-
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+echo "SERVICIOS.CLASS REAL: " . __FILE__ . "<br>";
+
 $path = __DIR__ . '/../conexion/conexion.php';
+echo "VOY A BUSCAR CONEXION EN: " . $path . "<br>";
 
-// DEBUG PROVISORIO
-if (!file_exists($path)) {
-    echo "NO EXISTE: " . $path;
-    exit;
-}
-
-require_once $path;
+var_dump(file_exists($path));
+exit;
 
 // require_once "../conexion/conexion.php";
 require_once "respuestas.class.php";
