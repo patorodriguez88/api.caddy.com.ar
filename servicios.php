@@ -1,6 +1,6 @@
 <?php
 require_once 'clases/respuestas.class.php';
-require_once 'clases/servicios.class.php';
+require_once 'clases/servicios.class_.php';
 
 $_respuestas = new respuestas;
 $_servicios  = new servicios;
