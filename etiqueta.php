@@ -129,7 +129,15 @@ class EtiquetaService extends conexion
         // Etiqueta 100x150 mm
         $pdf = new FPDF('P', 'mm', array(100, 150));
         $pdf->AddPage();
+        // --- LOGO CADDY ---
+        $logoPath = __DIR__ . '/assets/LogoCaddy.png';
+        if (file_exists($logoPath)) {
+            // x=5mm, y=5mm, ancho=30mm (alto proporcional)
+            $pdf->Image($logoPath, 5, 5, 30);
+        }
 
+        // Bajamos un poco para no pisar el logo
+        $pdf->SetY(25);
         // Header
         $pdf->SetFont('Arial', 'B', 16);
         $pdf->Cell(0, 8, 'CADDY LOGISTICA', 0, 1, 'C');
