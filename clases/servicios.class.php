@@ -124,10 +124,10 @@ class servicios extends conexion
                 $idUsuario = $this->pato;
                 $ClienteOrigen = $this->clienteOrigen($idUsuario);
 
-                if (empty($datos) || !isset($datos[0])) {
+                if (empty($ClienteOrigen) || !isset($ClienteOrigen[0])) {
                     // según tu lógica:
                     // 1) devolver un error:
-                    return $_respuestas->error_204();
+                    return $_respuestas->error_204('No se encontraron datos en Cliente Origen');
                     // o 2) devolver un array vacío:
                     // return [];
                 }
