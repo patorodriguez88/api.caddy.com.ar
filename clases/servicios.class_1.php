@@ -1,0 +1,3 @@
+<?php
+require_once __DIR__ . '/../conexion/conexion.php';
+// … acá pegás el código original de la clase servicios …

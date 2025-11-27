@@ -6,7 +6,7 @@ echo "<h3>SERVICIOS.PHP CARGADO DESDE:</h3>";
 echo __FILE__ . "<br>";
 
 echo "<h3>SERVICIOS.CLASS.PHP QUE PHP VE:</h3>";
-require_once 'clases/servicios.class.php';
+require_once 'clases/servicios.class_1.php';
 exit;
 
 require_once 'clases/respuestas.class.php';
