@@ -1,12 +1,4 @@
 <?php
-
-// if (function_exists('opcache_invalidate')) {
-//     opcache_invalidate(__FILE__, true);
-// }
-
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 // 1) Primero cargamos la conexión DESDE ACA
 $pathConexion = __DIR__ . '/conexion/conexion.php';
 
