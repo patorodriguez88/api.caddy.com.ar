@@ -5,9 +5,16 @@ ini_set('display_errors', 1);
 echo "<h3>SERVICIOS.PHP CARGADO DESDE:</h3>";
 echo __FILE__ . "<br>";
 
-echo "<h3>SERVICIOS.CLASS.PHP QUE PHP VE:</h3>";
-require_once 'clases/servicios.class_1.php';
+$pathClass = __DIR__ . '/clases/servicios.class_1.php';
+
+echo "<h3>RUTA QUE VOY A CARGAR:</h3>";
+echo $pathClass . "<br>";
+
+echo "<h3>EXISTE ESA RUTA?</h3>";
+var_dump(file_exists($pathClass));
+
 exit;
+
 
 require_once 'clases/respuestas.class.php';
 require_once 'clases/servicios.class.php';
