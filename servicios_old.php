@@ -1,4 +1,24 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+echo "<h3>SERVICIOS.PHP CARGADO DESDEEEEE:</h3>";
+echo __FILE__ . "<br>";
+
+$pathConexion = __DIR__ . '/conexion/conexion.php';
+
+echo "<h3>RUTA CONEXION QUE VOY A CARGAR:</h3>";
+echo $pathConexion . "<br>";
+
+echo "<h3>EXISTE ESA RUTA?</h3>";
+var_dump(file_exists($pathConexion));
+
+// Intento incluir
+require_once $pathConexion;
+
+echo "<br><br>✅ CONEXION.PHP INCLUIDO SIN FATAL";
+exit;
+
 require_once 'clases/respuestas.class.php';
 require_once 'clases/servicios.class.php';
 
