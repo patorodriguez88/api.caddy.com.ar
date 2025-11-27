@@ -37,6 +37,7 @@ class servicios extends conexion
     private $servicio = "";
     private $valordec = "";
     private $fechaNacimiento = "";
+    private $CodigoSeguimiento = "";
 
     function get_nombre_dia($fecha)
     {
@@ -460,8 +461,14 @@ class servicios extends conexion
                     if (isset($datos['idProveedor'])) {
                         $this->idproveedor = $datos['idProveedor'];
                     }
+                    //ENVIAR MAIL
+                    if (!empty($datos['EnviarMail'])) {
+                        $enviar_mail = true;
+                    } else {
+                        $enviar_mail = false;
+                    }
 
-                    $venta = $this->insertarVenta($tarifa_rate, $titulo_rate, $length, $width, $height, $weight, $cobranza);
+                    $venta = $this->insertarVenta($tarifa_rate, $titulo_rate, $length, $width, $height, $weight, $cobranza, $enviar_mail);
 
                     if ($venta['id_preventa']) {
 
@@ -656,7 +663,7 @@ class servicios extends conexion
 
 
 
-    private function insertarVenta($tarifa_rate, $titulo_rate, $length, $width, $height, $weight, $cobranza)
+    private function insertarVenta($tarifa_rate, $titulo_rate, $length, $width, $height, $weight, $cobranza, $enviar_mail)
     {
 
         // LUEGO CARGO LA VENTA
@@ -712,6 +719,7 @@ class servicios extends conexion
 
         //INSERTO LA VENTA EN PREVENTA
         $CodigoSeguimiento = parent::generarCodigo(9);
+        $this->CodigoSeguimiento = $CodigoSeguimiento;
 
         $query_preventa = "INSERT INTO `PreVenta`(`Fecha`, `RazonSocial`, `NCliente`, `TipoDeComprobante`, `NumeroComprobante`, `Cantidad`,`Precio`,`Total`,
         `ClienteDestino`, `idClienteDestino`, `DomicilioDestino`, `LocalidadDestino`,`NumeroVenta`, `DomicilioOrigen`,`LocalidadOrigen`, `Usuario`,
@@ -726,13 +734,13 @@ class servicios extends conexion
 
         if ($resp_preventa) {
 
+            // Enviar mail solo si el caller lo pidió y el email es válido
             if (
-                !empty($datos['EnviarMail']) &&
+                $enviar_mail &&
                 !empty($this->email) &&
                 filter_var($this->email, FILTER_VALIDATE_EMAIL)
             ) {
-
-                $this->enviar_mail($$codigoPostal);
+                $this->enviar_mail();
             }
 
             return [
@@ -795,7 +803,7 @@ class servicios extends conexion
 
 
 
-    private function enviar_mail($codigoPostal)
+    private function enviar_mail()
     {
         // Varios destinatarios
         $para  = $this->email; // atención a la coma
@@ -830,13 +838,13 @@ class servicios extends conexion
                 $send_date = 'Llega el ' . $dia;
             } else {
 
-                $send_date = 'Llega el ' . $date['DiaSalida'];
-                $citydestination = $date['Localidad'];
+                $send_date = 'Llega el ' . $date[0]['DiaSalida'];
+                $citydestination = $date[0]['Localidad'];
             }
         }
 
         $replace_a = array('<p id="name"></p>', '<p id="message"></p>');
-        $replace_b = array('<p id="name"></p>' . $cliente . '</a>', '<p id="message"></p> Recibimos tu compra en ' . $cliente_origen . '. </br> ' . $send_date . ' !</a>');
+        $replace_b = array('<p id="name"></p>' . $cliente . '</a>', '<p id="message"></p> Recibimos tu compra en ' . $cliente_origen . '. </br>' . 'Tu código de seguimiento es ' . $this->CodigoSeguimiento . '</br> ' . $send_date . ' !</a>');
 
         $mensaje = str_replace($replace_a, $replace_b, $shtml);
 
