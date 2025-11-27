@@ -2,7 +2,7 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-echo "<h3>SERVICIOS.PHP CARGADO DESDE:</h3>";
+echo "<h3>SERVICIOS.PHP CARGADO DESDEEEEE:</h3>";
 echo __FILE__ . "<br>";
 
 $pathConexion = __DIR__ . '/conexion/conexion.php';
