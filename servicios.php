@@ -1,6 +1,14 @@
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
+
+echo "<h3>SERVICIOS.PHP CARGADO DESDE:</h3>";
+echo __FILE__ . "<br>";
+
+echo "<h3>SERVICIOS.CLASS.PHP QUE PHP VE:</h3>";
+require_once 'clases/servicios.class.php';
+exit;
+
 require_once 'clases/respuestas.class.php';
 require_once 'clases/servicios.class.php';
 
