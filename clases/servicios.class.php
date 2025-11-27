@@ -310,7 +310,7 @@ class servicios extends conexion
 
                     if ($price[0]['id']) {
 
-                        $respuesta = $price->response;
+                        // $respuesta = $price->response;
 
                         $respuesta_rate["result"] = array(
                             "Id" => $price[0]['id'],
@@ -336,13 +336,14 @@ class servicios extends conexion
 
                     //   } 
 
-                    if ($datos['WebHook'] <> "") {
+                    if (!empty($datos['WebHook'])) {
 
                         $webhook = $datos['WebHook'];
                         $webhook_id = $this->clienteOrigen($idUsuario);
 
                         $webhook_api = $this->webhook($webhook, $webhook_id[0]['id']);
                     }
+                    $respuesta_actualizacion = '';
 
                     //VERIFICO SI ME ESTA ENVIANDO LOS DATOS DEL IDPROVEEDOR DE ORIGEN
                     if (($datos['Origen'][0]['idProveedor'] == "") || ($datos['Origen'][0]['idProveedor'] == "0")) {
@@ -663,8 +664,8 @@ class servicios extends conexion
         // $DomicilioDestino=$Calle.' '.$Numero;
 
         //DATOS DE LA VENTA
-        $Cantidad = $_POST['Cant'];
-        $DatoNV = $_POST['NV'];
+        // $Cantidad = $_POST['Cant'];
+        $DatoNV = $_POST['NV'] ?? '';
         $Precio = floatval($tarifa_rate);
         $Total = $this->cantidad * $Precio;
 
