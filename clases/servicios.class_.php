@@ -1,4 +1,7 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 require_once "../conexion/conexion.php";
 require_once "respuestas.class.php";
 
