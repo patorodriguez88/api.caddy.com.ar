@@ -724,8 +724,13 @@ class servicios extends conexion
 
         if ($resp_preventa) {
 
-            if ($this->email <> "") {
-                $this->enviar_mail($codigoPostal);
+            if (
+                !empty($datos['EnviarMail']) &&
+                !empty($this->email) &&
+                filter_var($this->email, FILTER_VALIDATE_EMAIL)
+            ) {
+                $email = $this->email;
+                $this->enviar_mail($email);
             }
 
             return [
@@ -779,19 +784,6 @@ class servicios extends conexion
                     if (isset($datos['fechaNacimiento'])) {
                         $this->fechaNacimiento = $datos['fechaNacimiento'];
                     }
-
-                    // $resp = $this->modificarPaciente();
-                    // if ($resp) {
-                    //     $respuesta = $_respuestas->response;
-                    //     $respuesta["result"] = array(
-                    //         "pacienteId" => $this->pacienteid
-                    //     );
-
-                    //     return $respuesta;
-                    // } else {
-
-                    //     return $_respuestas->error_500();
-                    // }
                 }
             } else {
                 return $_respuestas->error_401("El Token que envio es invalido o ha caducado");
@@ -799,37 +791,7 @@ class servicios extends conexion
         }
     }
 
-    // public function delete($json)
-    // {
-    //     $_respuestas = new respuestas;
-    //     $datos = json_decode($json, true);
 
-    //     if (!isset($datos['token'])) {
-    //         return $_respuestas->error_401('782');
-    //     } else {
-    //         $this->token = $datos['token'];
-    //         $arrayToken =   $this->buscarToken();
-    //         if ($arrayToken) {
-    //             if (!isset($datos['pacienteId'])) {
-    //                 return $_respuestas->error_400();
-    //             } else {
-    //                 $this->pacienteid = $datos['pacienteId'];
-    //                 $resp = $this->eliminarPaciente();
-    //                 if ($resp) {
-    //                     $respuesta = $_respuestas->response;
-    //                     $respuesta["result"] = array(
-    //                         "pacienteId" => $this->pacienteid
-    //                     );
-    //                     return $respuesta;
-    //                 } else {
-    //                     return $_respuestas->error_500();
-    //                 }
-    //             }
-    //         } else {
-    //             return $_respuestas->error_401("El Token que envio es invalido o ha caducado");
-    //         }
-    //     }
-    // }
 
     private function enviar_mail($codigoPostal)
     {
