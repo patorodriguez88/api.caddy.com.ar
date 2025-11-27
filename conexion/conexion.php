@@ -54,10 +54,12 @@ class conexion
     private function convertirUTF8($array)
     {
         array_walk_recursive($array, function (&$item, $key) {
-            if (!mb_detect_encoding($item, 'utf-8', true)) {
+            // Solo procesamos si es string
+            if (is_string($item) && !mb_detect_encoding($item, 'UTF-8', true)) {
                 $item = utf8_encode($item);
             }
         });
+
         return $array;
     }
     public function obtenerDatos($sqlstr)
