@@ -1,115 +1,90 @@
 <?php
-// 1) Primero cargamos la conexión DESDE ACA
-$pathConexion = __DIR__ . '/conexion/conexion.php';
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-if (!file_exists($pathConexion)) {
-    echo "NO EXISTE conexion.php en: " . $pathConexion;
-    exit;
-}
-
-require_once $pathConexion;
-
-require_once 'clases/respuestas.class.php';
-require_once 'clases/servicios.class.php';
+require_once __DIR__ . '/clases/respuestas.class.php';
+require_once __DIR__ . '/clases/servicios.class.php';
 
 $_respuestas = new respuestas;
 $_servicios  = new servicios;
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-if ($method == "GET") {
+if ($method === 'GET') {
 
-    header("Content-Type: application/json");
+    // SIEMPRE indicamos que la respuesta es JSON
+    header('Content-Type: application/json; charset=utf-8');
 
-    if (isset($_GET["page"])) {
+    if (isset($_GET['page'])) {
 
-        $pagina = $_GET["page"];
-        $token  = $_GET["token"]  ?? null;
-        $estado = $_GET["estado"] ?? null;
+        $pagina = $_GET['page'];
+        $token  = $_GET['token']  ?? null;
+        $estado = $_GET['estado'] ?? null;
 
-        $listaServicios = $_servicios->listaServicios($pagina, $token, $estado);
-        echo json_encode($listaServicios);
-        http_response_code(200);
+        $datosArray = $_servicios->listaServicios($pagina, $token, $estado);
     } elseif (isset($_GET['id'])) {
 
         $codigoseguimiento = $_GET['id'];
         $token             = $_GET['token'] ?? null;
 
-        $datosServicios = $_servicios->obtenerSeguimiento($codigoseguimiento, $token);
-        echo json_encode($datosServicios);
-        http_response_code(200);
+        $datosArray = $_servicios->obtenerSeguimiento($codigoseguimiento, $token);
     } elseif (isset($_GET['idProveedor'])) {
 
         $codigoseguimiento = $_GET['idProveedor'];
         $token             = $_GET['token'] ?? null;
 
-        $datosServicios = $_servicios->obtenerSeguimientoProveedor($codigoseguimiento, $token);
-        echo json_encode($datosServicios);
-        http_response_code(200);
+        $datosArray = $_servicios->obtenerSeguimientoProveedor($codigoseguimiento, $token);
     } else {
-
         // Sin parámetros válidos
-        $datosArray = $_respuestas->error_400(); // o el que uses
-        echo json_encode($datosArray);
-        http_response_code($datosArray['result']['error_id'] ?? 400);
+        $datosArray = $_respuestas->error_400();
     }
-} elseif ($method == "POST") {
 
-    $postBody   = file_get_contents("php://input");
+    // Definimos el código HTTP *antes* del echo
+    $code = 200;
+    if (isset($datosArray['result']['error_id'])) {
+        $code = (int)$datosArray['result']['error_id'];
+    }
+    http_response_code($code);
+
+    echo json_encode($datosArray);
+    exit;
+} elseif ($method === 'POST') {
+
+    header('Content-Type: application/json; charset=utf-8');
+
+    $postBody   = file_get_contents('php://input');
     $datosArray = $_servicios->post($postBody);
 
-    header('Content-Type: application/json');
-
-    if (isset($datosArray["result"]["error_id"])) {
-        http_response_code($datosArray["result"]["error_id"]);
-    } else {
-        http_response_code(200);
+    $code = 200;
+    if (isset($datosArray['result']['error_id'])) {
+        $code = (int)$datosArray['result']['error_id'];
     }
+    http_response_code($code);
 
     echo json_encode($datosArray);
-} elseif ($method == "PUT") {
+    exit;
+} elseif ($method === 'PUT') {
 
-    $postBody   = file_get_contents("php://input");
+    header('Content-Type: application/json; charset=utf-8');
+
+    $postBody   = file_get_contents('php://input');
     $datosArray = $_servicios->put($postBody);
 
-    header('Content-Type: application/json');
-
-    if (isset($datosArray["result"]["error_id"])) {
-        http_response_code($datosArray["result"]["error_id"]);
-    } else {
-        http_response_code(200);
+    $code = 200;
+    if (isset($datosArray['result']['error_id'])) {
+        $code = (int)$datosArray['result']['error_id'];
     }
+    http_response_code($code);
 
     echo json_encode($datosArray);
-    // } elseif ($method == "DELETE") {
-
-    //     $headers = getallheaders();
-
-    //     if (isset($headers["token"]) && isset($headers["pacienteId"])) {
-    //         $send = [
-    //             "token"      => $headers["token"],
-    //             "pacienteId" => $headers["pacienteId"]
-    //         ];
-    //         $postBody = json_encode($send);
-    //     } else {
-    //         $postBody = file_get_contents("php://input");
-    //     }
-
-    //     $datosArray = $_servicios->delete($postBody); // ✅ corregido
-
-    //     header('Content-Type: application/json');
-
-    //     if (isset($datosArray["result"]["error_id"])) {
-    //         http_response_code($datosArray["result"]["error_id"]);
-    //     } else {
-    //         http_response_code(200);
-    //     }
-
-    //     echo json_encode($datosArray);
-
+    exit;
 } else {
 
-    header('Content-Type: application/json');
+    header('Content-Type: application/json; charset=utf-8');
+
     $datosArray = $_respuestas->error_405();
+    http_response_code(405);
+
     echo json_encode($datosArray);
+    exit;
 }
