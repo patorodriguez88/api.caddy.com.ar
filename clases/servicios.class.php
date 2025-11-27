@@ -1,6 +1,19 @@
 <?php
 
-require_once "../conexion/conexion.php";
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+$path = __DIR__ . '/../conexion/conexion.php';
+
+// DEBUG PROVISORIO
+if (!file_exists($path)) {
+    echo "NO EXISTE: " . $path;
+    exit;
+}
+
+require_once $path;
+
+// require_once "../conexion/conexion.php";
 require_once "respuestas.class.php";
 
 class servicios extends conexion
