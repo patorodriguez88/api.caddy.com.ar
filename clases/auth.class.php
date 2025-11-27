@@ -63,7 +63,7 @@ class auth extends conexion
                     }
                 } else {
                     //la contraseña no es igual
-                    return $_respustas->error_200("El password es inválido");
+                    return $_respustas->error_200("El password " . $password . " es inválido");
                 }
             } else {
                 //no existe el usuario
