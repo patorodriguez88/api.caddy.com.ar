@@ -1,6 +1,8 @@
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
+//SE AGREGA EMAIL =TRUE EN EL PEDIDO DE CARGAR ENVIO PARA QUE ENVIE MAIL AL CLIENTE
+//SI NO VIENE ESE PARAMETRO NO ENVIA MAIL
 
 if (function_exists('opcache_invalidate')) {
     opcache_invalidate(__FILE__, true);
@@ -729,8 +731,8 @@ class servicios extends conexion
                 !empty($this->email) &&
                 filter_var($this->email, FILTER_VALIDATE_EMAIL)
             ) {
-                $email = $this->email;
-                $this->enviar_mail($email);
+
+                $this->enviar_mail($$codigoPostal);
             }
 
             return [
@@ -793,7 +795,7 @@ class servicios extends conexion
 
 
 
-    private function enviar_mail($codigoPostal)
+    private function enviar_mail()
     {
         // Varios destinatarios
         $para  = $this->email; // atención a la coma
@@ -876,3 +878,5 @@ class servicios extends conexion
         }
     }
 }
+//SE AGREGA EMAIL =TRUE EN EL PEDIDO DE CARGAR ENVIO PARA QUE ENVIE MAIL AL CLIENTE
+//SI NO VIENE ESE PARAMETRO NO ENVIA MAIL
