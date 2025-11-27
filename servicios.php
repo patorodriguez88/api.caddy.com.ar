@@ -5,16 +5,19 @@ ini_set('display_errors', 1);
 echo "<h3>SERVICIOS.PHP CARGADO DESDE:</h3>";
 echo __FILE__ . "<br>";
 
-$pathClass = __DIR__ . '/clases/servicios.class_1.php';
+$pathConexion = __DIR__ . '/conexion/conexion.php';
 
-echo "<h3>RUTA QUE VOY A CARGAR:</h3>";
-echo $pathClass . "<br>";
+echo "<h3>RUTA CONEXION QUE VOY A CARGAR:</h3>";
+echo $pathConexion . "<br>";
 
 echo "<h3>EXISTE ESA RUTA?</h3>";
-var_dump(file_exists($pathClass));
+var_dump(file_exists($pathConexion));
 
+// Intento incluir
+require_once $pathConexion;
+
+echo "<br><br>✅ CONEXION.PHP INCLUIDO SIN FATAL";
 exit;
-
 
 require_once 'clases/respuestas.class.php';
 require_once 'clases/servicios.class.php';
