@@ -469,36 +469,100 @@ class servicios extends conexion
                     }
 
                     $venta = $this->insertarVenta($tarifa_rate, $titulo_rate, $length, $width, $height, $weight, $cobranza, $enviar_mail);
-
                     if ($venta['id_preventa']) {
 
                         $date = $this->date_send($codigoPostal);
 
-                        $citydestination = $date[0]['Localidad'];
-                        $send_date = $date[0]['DiaSalida'];
+                        // Cuidamos el caso en que date_send no devuelva nada
+                        $citydestination = $date[0]['Localidad'] ?? null;
+                        $send_date       = $date[0]['DiaSalida'] ?? null;
 
-                        $Total = $this->cantidad * floatval($tarifa_rate);
+                        $Total             = $this->cantidad * floatval($tarifa_rate);
                         $tarifa_rate_label = round($tarifa_rate);
-                        $total_label = round($Total);
+                        $total_label       = round($Total);
 
                         $respuesta = $_respuestas->response;
 
                         $respuesta["result"] = array(
-                            "Id_de_Venta" => $venta['id_preventa'],
-                            "Observaciones" => $respuesta_actualizacion,
-                            "Fecha_Entrega" => $send_date,
-                            "Localidad" => $citydestination,
-                            "Cantidad" => $this->cantidad,
-                            "Titulo" => $titulo_rate,
-                            "Tarifa" => $tarifa_rate_label,
-                            "Total" => $total_label,
-                            "Codigo_Seguimiento" => $venta['CodigoSeguimiento']
+                            // Datos generales de la venta
+                            "Id_de_Venta"        => $venta['id_preventa'],
+                            "Codigo_Seguimiento" => $venta['CodigoSeguimiento'],
+                            "Observaciones"      => $respuesta_actualizacion,
+                            "Fecha_Entrega"      => $send_date,
+                            "Localidad"          => $citydestination,
+                            "Cantidad"           => $this->cantidad,
+                            "Titulo"             => $titulo_rate,
+                            "Tarifa"             => $tarifa_rate_label,
+                            "Total"              => $total_label,
+
+                            // Datos de origen
+                            "Origen" => array(
+                                "Nombre"          => $this->ClienteOrigen,
+                                "idClienteOrigen" => $this->idClienteOrigen,
+                                "Direccion"       => $this->DireccionClienteOrigen,
+                                "Ciudad"          => "Cordoba",            // según lo que grabás en PreVenta
+                                "Pais"            => "Argentina"
+                            ),
+
+                            // Datos de destino
+                            "Destino" => array(
+                                "Nombre"       => $this->nombre,
+                                "Direccion"    => $this->direccion,
+                                "Ciudad"       => $this->ciudad,
+                                "CodigoPostal" => $this->codigoPostal,
+                                "Telefono"     => $this->telefono,
+                                "Mail"         => $this->email,
+                                "Cantidad"     => $this->cantidad
+                            ),
+
+                            // Datos del paquete (opcional, pero queda muy prolijo)
+                            "Box" => array(
+                                "Length" => $length,
+                                "Width"  => $width,
+                                "Height" => $height,
+                                "Weight" => $weight
+                            ),
+
+                            // Otros datos útiles de la operación
+                            "Cobranza"       => $cobranza,
+                            "Servicio"       => $this->servicio,
+                            "ValorDeclarado" => $this->valordec,
+                            "EnviarMail"     => !empty($datos['EnviarMail']) ? true : false
                         );
 
                         return $respuesta;
                     } else {
                         return $_respuestas->error_500();
                     }
+                    // if ($venta['id_preventa']) {
+
+                    //     $date = $this->date_send($codigoPostal);
+
+                    //     $citydestination = $date[0]['Localidad'];
+                    //     $send_date = $date[0]['DiaSalida'];
+
+                    //     $Total = $this->cantidad * floatval($tarifa_rate);
+                    //     $tarifa_rate_label = round($tarifa_rate);
+                    //     $total_label = round($Total);
+
+                    //     $respuesta = $_respuestas->response;
+
+                    //     $respuesta["result"] = array(
+                    //         "Id_de_Venta" => $venta['id_preventa'],
+                    //         "Observaciones" => $respuesta_actualizacion,
+                    //         "Fecha_Entrega" => $send_date,
+                    //         "Localidad" => $citydestination,
+                    //         "Cantidad" => $this->cantidad,
+                    //         "Titulo" => $titulo_rate,
+                    //         "Tarifa" => $tarifa_rate_label,
+                    //         "Total" => $total_label,
+                    //         "Codigo_Seguimiento" => $venta['CodigoSeguimiento']
+                    //     );
+
+                    //     return $respuesta;
+                    // } else {
+                    //     return $_respuestas->error_500();
+                    // }
                 }
             } else {
 
@@ -844,7 +908,7 @@ class servicios extends conexion
         }
 
         $replace_a = array('<p id="name"></p>', '<p id="message"></p>');
-        $replace_b = array('<p id="name"></p>' . $cliente . '</a>', '<p id="message"></p> Recibimos tu compra en ' . $cliente_origen . '. </br>' . 'Tu código de seguimiento es ' . $this->CodigoSeguimiento . '</br> ' . $send_date . ' !</a>');
+        $replace_b = array('<p id="name"></p>Hola! ' . $cliente . '</a>', '<p id="message"></p> Recibimos tu compra en ' . $cliente_origen . '. </br>' . 'Tu código de seguimiento es ' . $this->CodigoSeguimiento . '</br> ' . $send_date . ' !</a>');
 
         $mensaje = str_replace($replace_a, $replace_b, $shtml);
 
