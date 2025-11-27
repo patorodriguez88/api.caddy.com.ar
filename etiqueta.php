@@ -133,7 +133,7 @@ class EtiquetaService extends conexion
         $logoPath = __DIR__ . '/assets/LogoCaddy.png';
         if (file_exists($logoPath)) {
             // x=5mm, y=5mm, ancho=30mm (alto proporcional)
-            $pdf->Image($logoPath, 5, 5, 30);
+            $pdf->Image($logoPath, 10, 10, 30);
         }
 
         // Bajamos un poco para no pisar el logo
