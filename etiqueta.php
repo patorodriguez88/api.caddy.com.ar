@@ -1,7 +1,10 @@
 <?php
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
+ini_set('display_errors', 0);
+// Opcional: iniciar buffer de salida para poder limpiar antes del PDF
+if (ob_get_length() === false) {
+    ob_start();
+}
 require_once 'conexion/conexion.php';
 require_once 'clases/respuestas.class.php';
 // Para PDF: asegurate de tener FPDF en esta ruta (ajustá si lo tenés en otro lado)
@@ -168,6 +171,11 @@ class EtiquetaService extends conexion
         // (Opcional) Podrías agregar un código de barras con otra lib
         $pdf->SetFont('Arial', 'B', 12);
         $pdf->Cell(0, 6, 'COD: ' . $codigo, 0, 1, 'C');
+
+        // ANTES de mandar headers y Output:
+        if (ob_get_length()) {
+            ob_end_clean(); // limpiamos cualquier eco / warning previo en el buffer
+        }
 
         // Enviar al navegador
         header('Content-Type: application/pdf');

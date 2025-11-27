@@ -1,8 +1,5 @@
 <?php
 
-if (function_exists('opcache_invalidate')) {
-    opcache_invalidate(__FILE__, true);
-}
 date_default_timezone_set('America/Argentina/Cordoba');
 
 class conexion
@@ -53,11 +50,23 @@ class conexion
 
     private function convertirUTF8($array)
     {
-        array_walk_recursive($array, function (&$item, $key) {
-            // Solo procesamos si es string
-            if (is_string($item) && !mb_detect_encoding($item, 'UTF-8', true)) {
-                $item = utf8_encode($item);
+        if (!is_array($array)) {
+            return $array;
+        }
+
+        array_walk_recursive($array, function (&$item) {
+            // Solo tocamos strings
+            if (!is_string($item)) {
+                return;
             }
+
+            // Si ya es UTF-8, no tocamos
+            if (mb_detect_encoding($item, 'UTF-8', true)) {
+                return;
+            }
+
+            // Convertimos desde ISO-8859-1 (o latin1) a UTF-8
+            $item = mb_convert_encoding($item, 'UTF-8', 'ISO-8859-1');
         });
 
         return $array;
