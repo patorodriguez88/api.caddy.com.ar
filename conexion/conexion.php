@@ -1,4 +1,8 @@
 <?php
+
+if (function_exists('opcache_invalidate')) {
+    opcache_invalidate(__FILE__, true);
+}
 date_default_timezone_set('America/Argentina/Cordoba');
 
 class conexion
