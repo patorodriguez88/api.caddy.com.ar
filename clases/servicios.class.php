@@ -123,7 +123,17 @@ class servicios extends conexion
                 $this->pato = $arrayToken[0]['UsuarioId'];
                 $idUsuario = $this->pato;
                 $ClienteOrigen = $this->clienteOrigen($idUsuario);
+
+                if (empty($datos) || !isset($datos[0])) {
+                    // según tu lógica:
+                    // 1) devolver un error:
+                    return $_respuestas->error_204();
+                    // o 2) devolver un array vacío:
+                    // return [];
+                }
+
                 $idClienteOrigen = $ClienteOrigen[0]['id'];
+
                 //BUSCO ID CLIENTE ORIGEN
                 $query = "SELECT IngBrutosOrigen FROM " . $this->tableTrans . " WHERE CodigoSeguimiento = '$id'";
                 $datos = parent::obtenerDatos($query);
