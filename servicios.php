@@ -2,7 +2,7 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 require_once 'clases/respuestas.class.php';
-require_once 'clases/servicios.class_.php';
+require_once 'clases/servicios.class.php';
 
 $_respuestas = new respuestas;
 $_servicios  = new servicios;
