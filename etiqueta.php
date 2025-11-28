@@ -56,7 +56,8 @@ class EtiquetaService extends conexion
                     ValorDeclarado,
                     Cobranza,
                     CodigoSeguimiento,
-                    idProveedor
+                    idProveedor,
+                    Observaciones
                   FROM PreVenta
                   WHERE CodigoSeguimiento = '" . $codigoSeguimiento . "'
                   LIMIT 1";
@@ -85,6 +86,7 @@ class EtiquetaService extends conexion
         $codigo  = $d['CodigoSeguimiento'] ?? '';
         $idProveedor = $d['idProveedor'] ?? '';
         $id = $d['id'] ?? '';
+        $observaciones = $d['Observaciones'] ?? '';
 
         $zpl = "^XA
 ^PW600
@@ -139,6 +141,7 @@ class EtiquetaService extends conexion
         $fechaImp  = date('d/m/Y H:i');
         $idProveedor = $d['idProveedor'] ?? '';
         $id = $d['id'] ?? '';
+        $observaciones = $d['Observaciones'] ?? '';
 
         // Etiqueta 100x150 mm
         $pdf = new FPDF('P', 'mm', array(100, 150));
@@ -177,7 +180,7 @@ class EtiquetaService extends conexion
         // 1) Nombre (negrita)
         $pdf->Cell($wNombre, 5, $nombre, 0, 0, 'L');
         // 2) #idProveedor (normal), pegado al nombre
-        $pdf->SetFont('Arial', '', 10);
+        $pdf->SetFont('Arial', '', 8);
         $pdf->Cell(0, 5, ' #' . $idProveedor, 0, 1, 'L');
 
         $pdf->SetFont('Arial', '', 9);
@@ -197,7 +200,7 @@ class EtiquetaService extends conexion
         // línea horizontal
         $y = $pdf->GetY();
         $pdf->Line($margin, $y, $pageWidth - $margin, $y);
-        $pdf->Ln(3);
+        $pdf->Ln(1);
 
         /* ========= LÍNEA "ENVÍO FLEX" ========= */
         $pdf->SetFont('Arial', 'B', 12);
@@ -269,6 +272,8 @@ class EtiquetaService extends conexion
         if (!empty($tel)) {
             $pdf->Cell(0, 4, 'Tel: ' . $tel, 0, 1, 'L');
         }
+        $pdf->Cell(0, 5, 'REFERENCIAS: ' . $this->pdfTxt($observaciones), 0, 1, 'L');
+
         $pdf->Ln(2);
 
         // Datos adicionales (cantidad / valor declarado / cobranza)
