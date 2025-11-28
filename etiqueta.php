@@ -123,31 +123,33 @@ class EtiquetaService extends conexion
      */
     public function generarPDF(array $d)
     {
-        $origen    = $d['OrigenNombre']      ?? '';
-        $o_dir     = $d['OrigenDireccion']   ?? '';
-        $o_loc     = $d['OrigenLocalidad']   ?? '';
-        $dest      = $d['ClienteDestino']    ?? '';
-        $d_dir     = $d['DomicilioDestino']  ?? '';
-        $d_loc     = $d['LocalidadDestino']  ?? '';
-        $cp        = $d['cpdestino']         ?? '';
-        $provDest  = $d['ProvinciaDestino']  ?? '';   // opcional
-        $recorrido = $d['Recorrido']         ?? '';   // opcional
-        $tel       = $d['Telefono']          ?? '';
-        $cant      = $d['Cantidad']          ?? 1;
-        $valdec    = $d['ValorDeclarado']    ?? 0;
-        $cobranza  = $d['Cobranza']          ?? 0;
-        $codigo    = $d['CodigoSeguimiento'] ?? 'SIN-CODIGO';
-        $usuario   = $d['Usuario']           ?? '';
-        $fechaImp  = date('d/m/Y H:i');
-        $idProveedor = $d['idProveedor'] ?? '';
-        $id = $d['id'] ?? '';
-        $observaciones = $d['Observaciones'] ?? '';
-
-        // Etiqueta 100x150 mm
-        $pdf = new FPDF('P', 'mm', array(100, 150));
+        // --- Tamaño real 10 x 15 cm ---
+        $pdf = new FPDF('P', 'mm', [100, 150]);
+        $pdf->SetAutoPageBreak(false);
         $margin = 5;
         $pdf->SetMargins($margin, $margin, $margin);
         $pdf->AddPage();
+        $pdf->SetXY($margin, $margin);
+
+        $origen      = $d['OrigenNombre']      ?? '';
+        $o_dir       = $d['OrigenDireccion']   ?? '';
+        $o_loc       = $d['OrigenLocalidad']   ?? '';
+        $dest        = $d['ClienteDestino']    ?? '';
+        $d_dir       = $d['DomicilioDestino']  ?? '';
+        $d_loc       = $d['LocalidadDestino']  ?? '';
+        $cp          = $d['cpdestino']         ?? '';
+        $provDest    = $d['ProvinciaDestino']  ?? '';
+        $recorrido   = $d['Recorrido']         ?? '';
+        $tel         = $d['Telefono']          ?? '';
+        $cant        = $d['Cantidad']          ?? 1;
+        $valdec      = $d['ValorDeclarado']    ?? 0;
+        $cobranza    = $d['Cobranza']          ?? 0;
+        $codigo      = $d['CodigoSeguimiento'] ?? 'SIN-CODIGO';
+        $usuario     = $d['Usuario']           ?? '';
+        $fechaImp    = date('d/m/Y H:i');
+        $idProveedor = $d['idProveedor']       ?? '';
+        $id          = $d['id']                ?? '';
+        $observaciones = $d['Observaciones']   ?? '';
 
         $pageWidth  = $pdf->GetPageWidth();
         $pageHeight = $pdf->GetPageHeight();
@@ -156,11 +158,12 @@ class EtiquetaService extends conexion
         /* ========= BLOQUE SUPERIOR: LOGO + ORIGEN ========= */
 
         $logoPath   = __DIR__ . '/assets/LogoCaddy.png';
-        $logoWidth  = 28;              // un poco más chico
-        $logoHeight = 22;              // alto estimado
+        $logoWidth  = 28;
+        $logoHeight = 22;
 
-        $yTop = $pdf->GetY();
+        $yTop  = $pdf->GetY();
         $xLogo = $margin;
+
         if (file_exists($logoPath)) {
             $pdf->Image($logoPath, $xLogo, $yTop, $logoWidth, 0);
         }
@@ -170,22 +173,19 @@ class EtiquetaService extends conexion
         $wOrigen = $usableW - ($logoWidth + 3);
 
         $pdf->SetXY($xOrigen, $yTop);
-        $pdf->SetFont('Arial', 'B', 10);
 
-        //ORIGEN
+        // Nombre en negrita
         $nombre = $this->pdfTxt($origen);
-        // ancho justo del nombre (en mm)
         $pdf->SetFont('Arial', 'B', 11);
-        $wNombre = $pdf->GetStringWidth($nombre) + 1; // +1mm de margen
-        // 1) Nombre (negrita)
+        $wNombre = $pdf->GetStringWidth($nombre) + 1;
+
         $pdf->Cell($wNombre, 5, $nombre, 0, 0, 'L');
-        // 2) #idProveedor (normal), pegado al nombre
+
+        // #idProveedor normal, pegado
         $pdf->SetFont('Arial', '', 8);
         $pdf->Cell(0, 5, ' #' . $idProveedor, 0, 1, 'L');
 
         $pdf->SetFont('Arial', '', 9);
-        $pdf->SetX($xOrigen);
-
         $pdf->SetX($xOrigen);
         $pdf->Cell($wOrigen, 4, $this->pdfTxt($o_dir), 0, 1, 'L');
         $pdf->SetX($xOrigen);
@@ -193,16 +193,16 @@ class EtiquetaService extends conexion
         $pdf->SetX($xOrigen);
         $pdf->Cell($wOrigen, 4, 'Venta: ' . $this->pdfTxt($id), 0, 1, 'L');
 
-        // bajar el cursor a lo máximo entre logo y texto
+        // bajar cursor según lo más alto (logo o texto)
         $yAfterTop = max($yTop + $logoHeight, $pdf->GetY());
         $pdf->SetY($yAfterTop + 3);
 
-        // línea horizontal
+        // línea
         $y = $pdf->GetY();
         $pdf->Line($margin, $y, $pageWidth - $margin, $y);
         $pdf->Ln(1);
 
-        /* ========= LÍNEA "ENVÍO FLEX" ========= */
+        /* ========= LÍNEA CÓDIGO ========= */
         $pdf->SetFont('Arial', 'B', 12);
         $pdf->Cell(0, 5, $codigo, 0, 1, 'C');
         $pdf->Ln(1);
@@ -211,13 +211,12 @@ class EtiquetaService extends conexion
         $pdf->Line($margin, $y, $pageWidth - $margin, $y);
         $pdf->Ln(3);
 
-        /* ========= BLOQUE QR + DATOS (CÓDIGO / CP / CIUDAD / PROV / RECORRIDO) ========= */
+        /* ========= BLOQUE QR + DATOS ========= */
 
-        $qrSize = 30; // mm
+        $qrSize = 30;
         $qrX    = $margin;
-        $qrY    = $pdf->GetY(); // arranca donde estamos ahora
+        $qrY    = $pdf->GetY();
 
-        // Generar QR si hay código
         if (!empty($codigo)) {
             $tmpQR = sys_get_temp_dir() . '/qr_' . $codigo . '.png';
             QRcode::png($codigo, $tmpQR, QR_ECLEVEL_L, 4);
@@ -225,37 +224,35 @@ class EtiquetaService extends conexion
             if (file_exists($tmpQR)) {
                 $pdf->Image($tmpQR, $qrX, $qrY, $qrSize, $qrSize);
                 @unlink($tmpQR);
-            } else {
-                error_log("⚠️ QR no generado: " . $tmpQR);
             }
         }
 
-        // Datos a la derecha del QR
         $xDatosQR = $qrX + $qrSize + 4;
         $wDatosQR = $usableW - ($qrSize + 4);
 
         $pdf->SetXY($xDatosQR, $qrY);
         $pdf->SetFont('Arial', 'B', 9);
         $pdf->Cell($wDatosQR, 5, $codigo, 0, 1, 'L');
+
+        $pdf->SetFont('Arial', '', 9);
         $pdf->SetX($xDatosQR);
-        $pdf->Cell($wDatosQR, 5, $cp, 0, 1, 'L');
+        $pdf->Cell($wDatosQR, 5, 'CP: ' . $cp, 0, 1, 'L');
         $pdf->SetX($xDatosQR);
         $pdf->Cell($wDatosQR, 5, $this->pdfTxt($d_loc), 0, 1, 'L');
 
         if (!empty($provDest)) {
             $pdf->SetX($xDatosQR);
-            $pdf->Cell($wDatosQR, 5, 'Provincia: ' . $this->pdfTxt($provDest), 0, 1, 'L');
+            $pdf->Cell($wDatosQR, 5, 'Prov: ' . $this->pdfTxt($provDest), 0, 1, 'L');
         }
         if (!empty($recorrido)) {
             $pdf->SetX($xDatosQR);
             $pdf->Cell($wDatosQR, 5, 'Recorrido: ' . $recorrido, 0, 1, 'L');
         }
 
-        // bajar a donde termina el QR
         $yAfterQR = max($qrY + $qrSize, $pdf->GetY());
         $pdf->SetY($yAfterQR + 3);
 
-        // línea horizontal
+        // línea
         $y = $pdf->GetY();
         $pdf->Line($margin, $y, $pageWidth - $margin, $y);
         $pdf->Ln(3);
@@ -273,29 +270,25 @@ class EtiquetaService extends conexion
             $pdf->Cell(0, 4, 'Tel: ' . $tel, 0, 1, 'L');
         }
         $pdf->Cell(0, 5, 'REFERENCIAS: ' . $this->pdfTxt($observaciones), 0, 1, 'L');
-
         $pdf->Ln(2);
 
-        // Datos adicionales (cantidad / valor declarado / cobranza)
-        // $pdf->Cell(0, 4, 'Cantidad: ' . $cant, 0, 1, 'L');
-        // $pdf->Cell(0, 4, 'Valor declarado: $ ' . number_format($valdec, 2, ',', '.'), 0, 1, 'L');
-        // $pdf->Cell(0, 4, 'Cobranza: $ ' . number_format($cobranza, 2, ',', '.'), 0, 1, 'L');
-        // $pdf->Ln(2);
+        /* ========= PIE ========= */
 
-        /* ========= PIE: USUARIO / FECHA ========= */
         $pdf->SetFont('Arial', '', 7);
         $pdf->Cell(0, 4, 'Usuario: ' . $usuario . '  |  Fecha: ' . $fechaImp, 0, 1, 'R');
 
-        // asegurar que no haya 2da página
-        // (con estos tamaños no debería ocurrir; si alguna vez se dispara, podés bajar aún más las fuentes)
-
+        // limpiar buffer y enviar
         if (ob_get_length()) {
             ob_end_clean();
         }
 
         header('Content-Type: application/pdf');
-        header('Content-Disposition: inline; filename="etiqueta-' . $codigo . '.pdf"');
-        $pdf->Output('I', 'etiqueta-' . $codigo . '.pdf');
+        // nombre SOLO el código
+        $filename = $codigo . '.pdf';
+        header('Content-Disposition: inline; filename="' . $filename . '"');
+        header("X-Robots-Tag: noindex");
+
+        $pdf->Output('I', $filename);
         exit;
     }
 
