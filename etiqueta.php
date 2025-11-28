@@ -154,27 +154,6 @@ class EtiquetaService extends conexion
 
         // Bajamos el cursor *después* del logo
         $pdf->SetY(10 + 30 + 5); // 10 + alto aprox del logo (30) + margen 5
-        // ---- QR CENTRADO ABAJO ----
-        if (!empty($codigo)) {
-
-            $qrSize = 40; // mm
-            $tmpQR = sys_get_temp_dir() . '/qr_' . $codigo . '.png';
-
-            QRcode::png($codigo, $tmpQR, QR_ECLEVEL_L, 4);
-
-            // Calcular centro
-            $pageWidth  = $pdf->GetPageWidth();
-            $pageHeight = $pdf->GetPageHeight();
-
-            $x = ($pageWidth - $qrSize) / 2;
-            $y = $pageHeight - ($qrSize + 10);  // 10 mm desde el borde inferior
-
-            $pdf->Image($tmpQR, $x, $y, $qrSize, $qrSize);
-
-            @unlink($tmpQR);
-        }
-
-
 
         // Bajamos un poco para no pisar el logo
         $pdf->SetY(25);
@@ -220,6 +199,30 @@ class EtiquetaService extends conexion
         // (Opcional) Podrías agregar un código de barras con otra lib
         $pdf->SetFont('Arial', 'B', 12);
         $pdf->Cell(0, 6, 'COD: ' . $codigo, 0, 1, 'C');
+
+        // --- QR ABAJO AL MEDIO ---
+        if (!empty($codigo)) {
+
+            $qrSize = 40; // mm
+            $tmpQR  = sys_get_temp_dir() . '/qr_' . $codigo . '.png';
+
+            // Generar QR
+            QRcode::png($codigo, $tmpQR, QR_ECLEVEL_L, 4);
+
+            if (file_exists($tmpQR)) {
+
+                $pageWidth  = $pdf->GetPageWidth();
+                $pageHeight = $pdf->GetPageHeight();
+
+                $x = ($pageWidth - $qrSize) / 2;
+                $y = $pageHeight - ($qrSize + 5); // 5 mm desde el borde inferior
+
+                $pdf->Image($tmpQR, $x, $y, $qrSize, $qrSize);
+                @unlink($tmpQR);
+            } else {
+                error_log("⚠️ QR no generado: " . $tmpQR);
+            }
+        }
 
         // ANTES de mandar headers y Output:
         if (ob_get_length()) {
