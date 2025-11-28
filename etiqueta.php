@@ -136,18 +136,17 @@ class EtiquetaService extends conexion
         $pdf = new FPDF('P', 'mm', array(100, 150));
         $pdf->AddPage();
 
-        // --- LOGO CADDY CENTRADO ---
-        $logoPath = __DIR__ . '/assets/LogoCaddy.png';
+        // ---- LOGO CADDY CENTRADO ----
+        $logoPath = __DIR__ . '/assets/logo_caddy.png';
 
         if (file_exists($logoPath)) {
 
-            $logoWidth  = 50; // mm
+            $logoWidth  = 50;  // mm
             $pageWidth  = $pdf->GetPageWidth();
+            $x          = ($pageWidth - $logoWidth) / 2;
+            $y          = 10;  // 10 mm desde arriba
 
-            $x = ($pageWidth - $logoWidth) / 2;
-            $y = 10; // 10mm desde arriba
-
-            $pdf->Image($logoPath, $x, $y, $logoWidth, 0); // 0 mantiene proporción
+            $pdf->Image($logoPath, $x, $y, $logoWidth, 0);
         } else {
             error_log("⚠️ LOGO NO ENCONTRADO: " . $logoPath);
         }
