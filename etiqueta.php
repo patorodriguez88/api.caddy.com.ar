@@ -137,7 +137,7 @@ class EtiquetaService extends conexion
         $pdf->AddPage();
 
         // ---- LOGO CADDY CENTRADO ----
-        $logoPath = __DIR__ . '/assets/logo_caddy.png';
+        $logoPath = __DIR__ . '/assets/LogoCaddy.png';
 
         if (file_exists($logoPath)) {
 
