@@ -180,8 +180,8 @@ class EtiquetaService extends conexion
         $pdf->SetFont('Arial', 'B', 11);
         $pdf->Cell(0, 6, 'DESTINO', 0, 1, 'L');
         $pdf->SetFont('Arial', '', 10);
-        $pdf->Cell(0, 5, $dest, 0, 1, 'L');
-        $pdf->Cell(0, 5, $d_dir, 0, 1, 'L');
+        $pdf->Cell(0, 5, $this->pdfTxt($dest), 0, 1, 'L');
+        $pdf->Cell(0, 5, $this->pdfTxt($d_dir), 0, 1, 'L');
 
         $pdf->Cell(0, 5, $this->pdfTxt($d_loc . ' (' . $cp . ')'), 0, 1, 'L');
         if (!empty($tel)) {
