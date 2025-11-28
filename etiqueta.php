@@ -170,8 +170,14 @@ class EtiquetaService extends conexion
         $pdf->SetFont('Arial', 'B', 10);
 
         //ORIGEN
-        $pdf->Cell($wOrigen, 5, $this->pdfTxt($origen), 0, 0, 'L'); // sin espacio final
-        $pdf->SetFont('Arial', '', 9);
+        $nombre = $this->pdfTxt($origen);
+        // ancho justo del nombre (en mm)
+        $pdf->SetFont('Arial', 'B', 11);
+        $wNombre = $pdf->GetStringWidth($nombre) + 1; // +1mm de margen
+        // 1) Nombre (negrita)
+        $pdf->Cell($wNombre, 5, $nombre, 0, 0, 'L');
+        // 2) #idProveedor (normal), pegado al nombre
+        $pdf->SetFont('Arial', '', 10);
         $pdf->Cell(0, 5, ' #' . $idProveedor, 0, 1, 'L');
 
         $pdf->SetFont('Arial', '', 9);
