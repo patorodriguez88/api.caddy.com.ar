@@ -9,6 +9,7 @@ require_once 'conexion/conexion.php';
 require_once 'clases/respuestas.class.php';
 // Para PDF: asegurate de tener FPDF en esta ruta (ajustá si lo tenés en otro lado)
 require_once 'libs/fpdf182/fpdf.php';
+require_once 'libs/phpqrcode/qrlib.php';   // 👈 NUEVO
 
 $_respuestas = new respuestas;
 
@@ -124,7 +125,7 @@ class EtiquetaService extends conexion
         $cant    = $d['Cantidad']          ?? 1;
         $valdec  = $d['ValorDeclarado']    ?? 0;
         $cobranza = $d['Cobranza']          ?? 0;
-        $codigo  = $d['CodigoSeguimiento'] ?? '';
+        $codigo  = $d['CodigoSeguimiento'] ?? 'SIN-CODIGO';
 
         // Etiqueta 100x150 mm
         $pdf = new FPDF('P', 'mm', array(100, 150));
@@ -158,6 +159,28 @@ class EtiquetaService extends conexion
         } else {
             error_log("⚠️ LOGO NO ENCONTRADO: " . $logoPath);
         }
+
+        // ---- QR CENTRADO ABAJO ----
+        if (!empty($codigo)) {
+
+            $qrSize = 40; // mm
+            $tmpQR = sys_get_temp_dir() . '/qr_' . $codigo . '.png';
+
+            QRcode::png($codigo, $tmpQR, QR_ECLEVEL_L, 4);
+
+            // Calcular centro
+            $pageWidth  = $pdf->GetPageWidth();
+            $pageHeight = $pdf->GetPageHeight();
+
+            $x = ($pageWidth - $qrSize) / 2;
+            $y = $pageHeight - ($qrSize + 10);  // 10 mm desde el borde inferior
+
+            $pdf->Image($tmpQR, $x, $y, $qrSize, $qrSize);
+
+            @unlink($tmpQR);
+        }
+
+
 
         // Bajamos un poco para no pisar el logo
         $pdf->SetY(25);
