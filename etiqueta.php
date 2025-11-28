@@ -43,7 +43,7 @@ class EtiquetaService extends conexion
     public function obtenerDatosEnvio(string $codigoSeguimiento)
     {
         $query = "SELECT 
-                    Fecha,
+                    id,Fecha,
                     RazonSocial       AS OrigenNombre,
                     DomicilioOrigen   AS OrigenDireccion,
                     LocalidadOrigen   AS OrigenLocalidad,
@@ -84,6 +84,7 @@ class EtiquetaService extends conexion
         $cobranza = $d['Cobranza']          ?? 0;
         $codigo  = $d['CodigoSeguimiento'] ?? '';
         $idProveedor = $d['idProveedor'] ?? '';
+        $id = $d['id'] ?? '';
 
         $zpl = "^XA
 ^PW600
@@ -137,6 +138,7 @@ class EtiquetaService extends conexion
         $usuario   = $d['Usuario']           ?? '';
         $fechaImp  = date('d/m/Y H:i');
         $idProveedor = $d['idProveedor'] ?? '';
+        $id = $d['id'] ?? '';
 
         // Etiqueta 100x150 mm
         $pdf = new FPDF('P', 'mm', array(100, 150));
@@ -168,19 +170,19 @@ class EtiquetaService extends conexion
         $pdf->SetFont('Arial', 'B', 10);
 
         //ORIGEN
-        $pdf->SetFont('Arial', 'B', 10); // NEGRITA
-        $pdf->Cell($wOrigen, 5, $this->pdfTxt($origen . ' '), 0, 0, 'L');
-
-        $pdf->SetFont('Arial', '', 9);   // NORMAL
-        $pdf->Cell(0, 5, '#' . $idProveedor, 0, 1, 'L');
+        $pdf->Cell($wOrigen, 5, $this->pdfTxt($origen), 0, 0, 'L'); // sin espacio final
+        $pdf->SetFont('Arial', '', 9);
+        $pdf->Cell(0, 5, ' #' . $idProveedor, 0, 1, 'L');
 
         $pdf->SetFont('Arial', '', 9);
         $pdf->SetX($xOrigen);
-        // $pdf->Cell($wOrigen, 4, $this->pdfTxt($origen), 0, 1, 'L');
+
         $pdf->SetX($xOrigen);
         $pdf->Cell($wOrigen, 4, $this->pdfTxt($o_dir), 0, 1, 'L');
         $pdf->SetX($xOrigen);
         $pdf->Cell($wOrigen, 4, $this->pdfTxt($o_loc), 0, 1, 'L');
+        $pdf->SetX($xOrigen);
+        $pdf->Cell($wOrigen, 4, 'id: ' . $this->pdfTxt($id), 0, 1, 'L');
 
         // bajar el cursor a lo máximo entre logo y texto
         $yAfterTop = max($yTop + $logoHeight, $pdf->GetY());
