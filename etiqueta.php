@@ -132,6 +132,11 @@ class EtiquetaService extends conexion
         $cobranza = $d['Cobranza']          ?? 0;
         $codigo  = $d['CodigoSeguimiento'] ?? 'SIN-CODIGO';
 
+        // DATOS OPCIONALES (usuario, fecha)
+        $usuario = $d['Usuario'] ?? 'API';
+        $fecha   = date('d/m/Y');
+        $hora    = date('H:i');
+
         // Etiqueta 100x150 mm
         $pdf = new FPDF('P', 'mm', array(100, 150));
         $pdf->AddPage();
@@ -141,71 +146,67 @@ class EtiquetaService extends conexion
 
         if (file_exists($logoPath)) {
 
-            $logoWidth  = 50;  // mm
-            $pageWidth  = $pdf->GetPageWidth();
-            $x          = ($pageWidth - $logoWidth) / 2;
-            $y          = 10;  // 10 mm desde arriba
+            $logoWidth = 40; // ACHICADO (antes 50)
+
+            $pageWidth = $pdf->GetPageWidth();
+            $x = ($pageWidth - $logoWidth) / 2;
+            $y = 8; // un poquito más arriba
 
             $pdf->Image($logoPath, $x, $y, $logoWidth, 0);
-        } else {
-            error_log("⚠️ LOGO NO ENCONTRADO: " . $logoPath);
         }
 
-        // Bajamos el cursor *después* del logo
-        $pdf->SetY(10 + 30 + 5); // 10 + alto aprox del logo (30) + margen 5
-
-        // Bajamos un poco para no pisar el logo
-        $pdf->SetY(25);
-        // Header
-        $pdf->SetFont('Arial', 'B', 16);
-        $pdf->Cell(0, 8, 'Caddy Logistica', 0, 1, 'C');
+        // ---- INFO DE IMPRESIÓN ----
+        $pdf->SetY(8 + 25); // Logo + margen
+        $pdf->SetFont('Arial', '', 8); // más chico
+        $pdf->Cell(0, 4, "Usuario: $usuario   Fecha: $fecha   Hora: $hora", 0, 1, 'C');
         $pdf->Ln(2);
 
+        // ---- TITULO ----
+        $pdf->SetFont('Arial', 'B', 14); // antes 16
+        $pdf->Cell(0, 8, 'Caddy Logistica', 0, 1, 'C');
+        $pdf->Ln(1);
+
         // Código de seguimiento
-        $pdf->SetFont('Arial', '', 10);
+        $pdf->SetFont('Arial', '', 9); // antes 10
         $pdf->Cell(0, 5, 'Codigo de seguimiento: ' . $codigo, 0, 1, 'C');
         $pdf->Ln(3);
 
-        // Origen
-        $pdf->SetFont('Arial', 'B', 11);
+        // ORIGEN
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell(0, 6, 'ORIGEN', 0, 1, 'L');
-        $pdf->SetFont('Arial', '', 10);
+        $pdf->SetFont('Arial', '', 9);
         $pdf->Cell(0, 5, $this->pdfTxt($origen), 0, 1, 'L');
         $pdf->Cell(0, 5, $this->pdfTxt($o_dir), 0, 1, 'L');
         $pdf->Cell(0, 5, $this->pdfTxt($o_loc), 0, 1, 'L');
         $pdf->Ln(3);
 
-        // Destino
-        $pdf->SetFont('Arial', 'B', 11);
+        // DESTINO
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell(0, 6, 'DESTINO', 0, 1, 'L');
-        $pdf->SetFont('Arial', '', 10);
+        $pdf->SetFont('Arial', '', 9);
         $pdf->Cell(0, 5, $this->pdfTxt($dest), 0, 1, 'L');
         $pdf->Cell(0, 5, $this->pdfTxt($d_dir), 0, 1, 'L');
-
-        $pdf->Cell(0, 5, $this->pdfTxt($d_loc . ' (' . $cp . ')'), 0, 1, 'L');
+        $pdf->Cell(0, 5, $this->pdfTxt($d_loc . " ($cp)"), 0, 1, 'L');
         if (!empty($tel)) {
-            $pdf->Cell(0, 5, $this->pdfTxt('Tel: ' . $tel), 0, 1, 'L');
+            $pdf->Cell(0, 5, $this->pdfTxt("Tel: $tel"), 0, 1, 'L');
         }
         $pdf->Ln(3);
 
-        // Datos adicionales
-        $pdf->SetFont('Arial', '', 10);
-        $pdf->Cell(0, 5, 'Cantidad: ' . $cant, 0, 1, 'L');
-        $pdf->Cell(0, 5, 'Valor declarado: $ ' . number_format($valdec, 2, ',', '.'), 0, 1, 'L');
-        $pdf->Cell(0, 5, 'Cobranza: $ ' . number_format($cobranza, 2, ',', '.'), 0, 1, 'L');
-        $pdf->Ln(8);
+        // DATOS ADICIONALES
+        $pdf->SetFont('Arial', '', 9);
+        $pdf->Cell(0, 5, "Cantidad: $cant", 0, 1, 'L');
+        $pdf->Cell(0, 5, "Valor declarado: $ " . number_format($valdec, 2, ',', '.'), 0, 1, 'L');
+        $pdf->Cell(0, 5, "Cobranza: $ " . number_format($cobranza, 2, ',', '.'), 0, 1, 'L');
 
-        // (Opcional) Podrías agregar un código de barras con otra lib
-        $pdf->SetFont('Arial', 'B', 12);
+        $pdf->Ln(6);
+        $pdf->SetFont('Arial', 'B', 11);
         $pdf->Cell(0, 6, 'COD: ' . $codigo, 0, 1, 'C');
 
-        // --- QR ABAJO AL MEDIO ---
+        // ---- QR AJUSTADO ----
         if (!empty($codigo)) {
-
-            $qrSize = 40; // mm
+            $qrSize = 35; // ACHICADO (antes 40)
             $tmpQR  = sys_get_temp_dir() . '/qr_' . $codigo . '.png';
 
-            // Generar QR
             QRcode::png($codigo, $tmpQR, QR_ECLEVEL_L, 4);
 
             if (file_exists($tmpQR)) {
@@ -214,21 +215,17 @@ class EtiquetaService extends conexion
                 $pageHeight = $pdf->GetPageHeight();
 
                 $x = ($pageWidth - $qrSize) / 2;
-                $y = $pageHeight - ($qrSize + 5); // 5 mm desde el borde inferior
+                $y = $pageHeight - ($qrSize + 10); // BAJADO (antes +5)
 
                 $pdf->Image($tmpQR, $x, $y, $qrSize, $qrSize);
                 @unlink($tmpQR);
-            } else {
-                error_log("⚠️ QR no generado: " . $tmpQR);
             }
         }
 
-        // ANTES de mandar headers y Output:
         if (ob_get_length()) {
-            ob_end_clean(); // limpiamos cualquier eco / warning previo en el buffer
+            ob_end_clean();
         }
 
-        // Enviar al navegador
         header('Content-Type: application/pdf');
         header('Content-Disposition: inline; filename="etiqueta-' . $codigo . '.pdf"');
         $pdf->Output('I', 'etiqueta-' . $codigo . '.pdf');
