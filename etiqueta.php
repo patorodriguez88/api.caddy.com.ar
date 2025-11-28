@@ -191,7 +191,7 @@ class EtiquetaService extends conexion
         $pdf->SetX($xOrigen);
         $pdf->Cell($wOrigen, 4, $this->pdfTxt($o_loc), 0, 1, 'L');
         $pdf->SetX($xOrigen);
-        $pdf->Cell($wOrigen, 4, 'id: ' . $this->pdfTxt($id), 0, 1, 'L');
+        $pdf->Cell($wOrigen, 4, 'Venta: ' . $this->pdfTxt($id), 0, 1, 'L');
 
         // bajar el cursor a lo máximo entre logo y texto
         $yAfterTop = max($yTop + $logoHeight, $pdf->GetY());
@@ -235,12 +235,12 @@ class EtiquetaService extends conexion
         $wDatosQR = $usableW - ($qrSize + 4);
 
         $pdf->SetXY($xDatosQR, $qrY);
-        $pdf->SetFont('Arial', '', 9);
-        $pdf->Cell($wDatosQR, 5, 'Codigo: ' . $codigo, 0, 1, 'L');
+        $pdf->SetFont('Arial', 'B', 9);
+        $pdf->Cell($wDatosQR, 5, $codigo, 0, 1, 'L');
         $pdf->SetX($xDatosQR);
-        $pdf->Cell($wDatosQR, 5, 'CP: ' . $cp, 0, 1, 'L');
+        $pdf->Cell($wDatosQR, 5, $cp, 0, 1, 'L');
         $pdf->SetX($xDatosQR);
-        $pdf->Cell($wDatosQR, 5, 'Ciudad: ' . $this->pdfTxt($d_loc), 0, 1, 'L');
+        $pdf->Cell($wDatosQR, 5, $this->pdfTxt($d_loc), 0, 1, 'L');
 
         if (!empty($provDest)) {
             $pdf->SetX($xDatosQR);
