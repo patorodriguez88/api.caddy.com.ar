@@ -19,6 +19,11 @@ $_respuestas = new respuestas;
 class EtiquetaService extends conexion
 {
     private $token;
+    private function pdfTxt(string $txt): string
+    {
+        // Convertir de UTF-8 a ISO-8859-1 para FPDF
+        return mb_convert_encoding($txt, 'ISO-8859-1', 'UTF-8');
+    }
 
     private function validarToken(string $token)
     {
@@ -130,36 +135,25 @@ class EtiquetaService extends conexion
         // Etiqueta 100x150 mm
         $pdf = new FPDF('P', 'mm', array(100, 150));
         $pdf->AddPage();
-        // --- LOGO CADDY ---
-        // $logoPath = __DIR__ . '/assets/LogoCaddy.png';
-        // if (file_exists($logoPath)) {
-        //     // x=5mm, y=5mm, ancho=30mm (alto proporcional)
-        //     $pdf->Image($logoPath, 5, 5, 30);
-        // }
-        // Ruta del logo
+
+        // --- LOGO CADDY CENTRADO ---
         $logoPath = __DIR__ . '/assets/logo_caddy.png';
 
-        // Evitar errores si no existe la imagen
         if (file_exists($logoPath)) {
 
-            // Tamaño del logo (ajustá si querés más grande o más chico)
             $logoWidth  = 50; // mm
-            $logoHeight = 30; // mm aprox según proporción
+            $pageWidth  = $pdf->GetPageWidth();
 
-            // Ancho total de la etiqueta (si usás 100 mm)
-            $pageWidth = $pdf->GetPageWidth();
-
-            // Coordenadas centradas
             $x = ($pageWidth - $logoWidth) / 2;
-            $y = 10; // a 10 mm desde arriba
+            $y = 10; // 10mm desde arriba
 
-            // Imprimir el logo centrado
-            $pdf->Image($logoPath, $x, $y, $logoWidth, 0); // 0 mantiene la proporción
-
+            $pdf->Image($logoPath, $x, $y, $logoWidth, 0); // 0 mantiene proporción
         } else {
             error_log("⚠️ LOGO NO ENCONTRADO: " . $logoPath);
         }
 
+        // Bajamos el cursor *después* del logo
+        $pdf->SetY(10 + 30 + 5); // 10 + alto aprox del logo (30) + margen 5
         // ---- QR CENTRADO ABAJO ----
         if (!empty($codigo)) {
 
@@ -198,9 +192,9 @@ class EtiquetaService extends conexion
         $pdf->SetFont('Arial', 'B', 11);
         $pdf->Cell(0, 6, 'ORIGEN', 0, 1, 'L');
         $pdf->SetFont('Arial', '', 10);
-        $pdf->Cell(0, 5, $origen, 0, 1, 'L');
-        $pdf->Cell(0, 5, $o_dir, 0, 1, 'L');
-        $pdf->Cell(0, 5, $o_loc, 0, 1, 'L');
+        $pdf->Cell(0, 5, $this->pdfTxt($origen), 0, 1, 'L');
+        $pdf->Cell(0, 5, $this->pdfTxt($o_dir), 0, 1, 'L');
+        $pdf->Cell(0, 5, $this->pdfTxt($o_loc), 0, 1, 'L');
         $pdf->Ln(3);
 
         // Destino
@@ -209,9 +203,10 @@ class EtiquetaService extends conexion
         $pdf->SetFont('Arial', '', 10);
         $pdf->Cell(0, 5, $dest, 0, 1, 'L');
         $pdf->Cell(0, 5, $d_dir, 0, 1, 'L');
-        $pdf->Cell(0, 5, $d_loc . ' (' . $cp . ')', 0, 1, 'L');
+
+        $pdf->Cell(0, 5, $this->pdfTxt($d_loc . ' (' . $cp . ')'), 0, 1, 'L');
         if (!empty($tel)) {
-            $pdf->Cell(0, 5, 'Tel: ' . $tel, 0, 1, 'L');
+            $pdf->Cell(0, 5, $this->pdfTxt('Tel: ' . $tel), 0, 1, 'L');
         }
         $pdf->Ln(3);
 
