@@ -130,17 +130,40 @@ class EtiquetaService extends conexion
         $pdf = new FPDF('P', 'mm', array(100, 150));
         $pdf->AddPage();
         // --- LOGO CADDY ---
-        $logoPath = __DIR__ . '/assets/LogoCaddy.png';
+        // $logoPath = __DIR__ . '/assets/LogoCaddy.png';
+        // if (file_exists($logoPath)) {
+        //     // x=5mm, y=5mm, ancho=30mm (alto proporcional)
+        //     $pdf->Image($logoPath, 5, 5, 30);
+        // }
+        // Ruta del logo
+        $logoPath = __DIR__ . '/assets/logo_caddy.png';
+
+        // Evitar errores si no existe la imagen
         if (file_exists($logoPath)) {
-            // x=5mm, y=5mm, ancho=30mm (alto proporcional)
-            $pdf->Image($logoPath, 10, 10, 30);
+
+            // Tamaño del logo (ajustá si querés más grande o más chico)
+            $logoWidth  = 50; // mm
+            $logoHeight = 30; // mm aprox según proporción
+
+            // Ancho total de la etiqueta (si usás 100 mm)
+            $pageWidth = $pdf->GetPageWidth();
+
+            // Coordenadas centradas
+            $x = ($pageWidth - $logoWidth) / 2;
+            $y = 10; // a 10 mm desde arriba
+
+            // Imprimir el logo centrado
+            $pdf->Image($logoPath, $x, $y, $logoWidth, 0); // 0 mantiene la proporción
+
+        } else {
+            error_log("⚠️ LOGO NO ENCONTRADO: " . $logoPath);
         }
 
         // Bajamos un poco para no pisar el logo
         $pdf->SetY(25);
         // Header
         $pdf->SetFont('Arial', 'B', 16);
-        $pdf->Cell(0, 8, 'CADDY LOGISTICA', 0, 1, 'C');
+        $pdf->Cell(0, 8, 'Caddy Logistica', 0, 1, 'C');
         $pdf->Ln(2);
 
         // Código de seguimiento
