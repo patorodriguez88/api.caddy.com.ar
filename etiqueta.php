@@ -229,11 +229,24 @@ class EtiquetaService extends conexion
         $pdf->Cell(0, 5, $codigo, 0, 1, 'C');
 
         // SOLO si hay más de un bulto mostramos "BULTO X/Y"
+        // if ($totalBultos > 1) {
+        //     $pdf->SetFont('Arial', 'B', 11);
+        //     $pdf->Cell(0, 5, 'BULTO ' . $nroBulto . '/' . $totalBultos, 0, 1, 'C');
+        // }
+        // Mostrar solo "X/Y" debajo del logo (más grande)
         if ($totalBultos > 1) {
-            $pdf->SetFont('Arial', 'B', 11);
-            $pdf->Cell(0, 5, 'BULTO ' . $nroBulto . '/' . $totalBultos, 0, 1, 'C');
-        }
 
+            $pdf->SetFont('Arial', 'B', 14); // más grande
+            $textoFraccion = $nroBulto . '/' . $totalBultos;
+
+            // Lo ubicamos debajo del logo
+            $pdf->SetY($yTop + $logoHeight + 2);
+            $pdf->Cell(0, 8, $textoFraccion, 0, 1, 'C');
+
+            // Y bajamos el cursor un poco
+            $pdf->Ln(2);
+        }
+        // línea
         $pdf->Ln(1);
 
         $y = $pdf->GetY();
