@@ -120,9 +120,6 @@ class EtiquetaService extends conexion
         $observaciones = $d['Observaciones']   ?? '';
 
         // código que se muestra / imprime por bulto
-        // $codigoEtiqueta = ($totalBultos > 1)
-        //     ? $codigoBase . '_' . $nroBulto
-        //     : $codigoBase;
         $codigoEtiqueta = $d['CodigoSeguimiento'] ?? 'SIN-CODIGO';
 
         $pageWidth  = $pdf->GetPageWidth();
@@ -170,13 +167,6 @@ class EtiquetaService extends conexion
         // bajar cursor según lo más alto (logo o texto)
         $yAfterTop = max($yTop + $logoHeight, $pdf->GetY());
 
-        /* ========= BULTO X/Y DEBAJO DEL LOGO ========= */
-        // if ($totalBultos > 1) {
-        //     $pdf->SetFont('Arial', 'B', 14);      // un poco grande
-        //     $pdf->SetXY($margin, $yAfterTop + 1); // debajo del logo, a la izquierda
-        //     $pdf->Cell(0, 7, $nroBulto . '/' . $totalBultos, 0, 1, 'L');
-        //     $yAfterTop = max($yAfterTop, $pdf->GetY());
-        // }
         /* ========= BULTO X/Y DEBAJO DEL LOGO (AJUSTADO) ========= */
         if ($totalBultos > 1) {
 
