@@ -144,7 +144,7 @@ class EtiquetaService extends conexion
     //     return $zpl;
     // }
 
-    private function dibujarEtiquetaPDF(FPDF $pdf, array $d): void
+    private function dibujarEtiquetaPDF(FPDF $pdf, array $d, int $nroBulto = 1, int $totalBultos = 1): void
     {
         $margin = 5;
         $pdf->SetAutoPageBreak(false);
@@ -223,9 +223,17 @@ class EtiquetaService extends conexion
         $pdf->Line($margin, $y, $pageWidth - $margin, $y);
         $pdf->Ln(1);
 
-        /* ========= LÍNEA CÓDIGO ========= */
+        /* ========= LÍNEA CÓDIGO + BULTO ========= */
+        // Código grande
         $pdf->SetFont('Arial', 'B', 12);
         $pdf->Cell(0, 5, $codigo, 0, 1, 'C');
+
+        // SOLO si hay más de un bulto mostramos "BULTO X/Y"
+        if ($totalBultos > 1) {
+            $pdf->SetFont('Arial', 'B', 11);
+            $pdf->Cell(0, 5, 'BULTO ' . $nroBulto . '/' . $totalBultos, 0, 1, 'C');
+        }
+
         $pdf->Ln(1);
 
         $y = $pdf->GetY();
@@ -298,16 +306,15 @@ class EtiquetaService extends conexion
         $pdf->SetFont('Arial', '', 7);
         $pdf->Cell(0, 4, 'Usuario: ' . $usuario . '  |  Fecha: ' . $fechaImp, 0, 1, 'R');
 
-        // Marco punteado
+        // Marco punteado (si ya lo tenías):
         $x = 2;
         $y = 2;
         $w = 96;
         $h = 146;
-
-        $this->dashedLine($pdf, $x, $y, $x + $w, $y);            // arriba
-        $this->dashedLine($pdf, $x, $y + $h, $x + $w, $y + $h);  // abajo
-        $this->dashedLine($pdf, $x, $y, $x, $y + $h);            // izquierda
-        $this->dashedLine($pdf, $x + $w, $y, $x + $w, $y + $h);  // derecha
+        $this->dashedLine($pdf, $x, $y, $x + $w, $y);
+        $this->dashedLine($pdf, $x, $y + $h, $x + $w, $y + $h);
+        $this->dashedLine($pdf, $x, $y, $x, $y + $h);
+        $this->dashedLine($pdf, $x + $w, $y, $x + $w, $y + $h);
     }
 
 
@@ -324,101 +331,64 @@ class EtiquetaService extends conexion
      * Construir string ZPL para impresora Zebra
      * emulando la estructura de la etiqueta PDF.
      */
-    public function construirZPL(array $d): string
+    public function construirZPL(array $d, int $nroBulto = 1, int $totalBultos = 1): string
     {
-        $origen      = $this->zplTxt($d['OrigenNombre']      ?? '');
-        $o_dir       = $this->zplTxt($d['OrigenDireccion']   ?? '');
-        $o_loc       = $this->zplTxt($d['OrigenLocalidad']   ?? '');
-        $dest        = $this->zplTxt($d['ClienteDestino']    ?? '');
-        $d_dir       = $this->zplTxt($d['DomicilioDestino']  ?? '');
-        $d_loc       = $this->zplTxt($d['LocalidadDestino']  ?? '');
-        $cp          = $this->zplTxt($d['cpdestino']         ?? '');
-        $tel         = $this->zplTxt($d['Telefono']          ?? '');
-        $valdec      = $d['ValorDeclarado']                  ?? 0;
-        $cobranza    = $d['Cobranza']                        ?? 0;
-        $codigo      = $this->zplTxt($d['CodigoSeguimiento'] ?? '');
-        $idProveedor = $this->zplTxt($d['idProveedor']       ?? '');
-        $idVenta     = $this->zplTxt((string)($d['id']       ?? ''));
-        $provDest    = $this->zplTxt($d['ProvinciaDestino']  ?? '');
-        $recorrido   = $this->zplTxt($d['Recorrido']         ?? '');
-        $observ      = $this->zplTxt($d['Observaciones']     ?? '');
-        $usuario     = $this->zplTxt($d['Usuario']           ?? '');
-        $fechaImp    = date('d/m/Y H:i');
+        $origen  = $d['OrigenNombre']      ?? '';
+        $o_dir   = $d['OrigenDireccion']   ?? '';
+        $o_loc   = $d['OrigenLocalidad']   ?? '';
+        $dest    = $d['ClienteDestino']    ?? '';
+        $d_dir   = $d['DomicilioDestino']  ?? '';
+        $d_loc   = $d['LocalidadDestino']  ?? '';
+        $cp      = $d['cpdestino']         ?? '';
+        $tel     = $d['Telefono']          ?? '';
+        $cant    = $d['Cantidad']          ?? 1;
+        $valdec  = $d['ValorDeclarado']    ?? 0;
+        $cobranza = $d['Cobranza']         ?? 0;
+        $codigo  = $d['CodigoSeguimiento'] ?? '';
+        $idProveedor = $d['idProveedor']   ?? '';
+        $id = $d['id']                     ?? '';
+        $observaciones = $d['Observaciones'] ?? '';
 
-        // Cantidad no afecta el diseño de UNA etiqueta: eso lo manejamos afuera en procesar()
-        $valdecTxt   = number_format((float)$valdec, 2, ',', '.');
-        $cobranzaTxt = number_format((float)$cobranza, 2, ',', '.');
-
-        // Notas:
-        // - ^CI28: juego de caracteres UTF-8/ISO extendido (depende del modelo).
-        // - Usamos 600 de ancho, 900 de alto aprox para 4x6".
-        $zpl  = "^XA\n";
-        $zpl .= "^CI28\n";           // juego de caracteres
-        $zpl .= "^PW600\n";
-        $zpl .= "^LL900\n";
-
-        // ENCABEZADO - CADDY
-        $zpl .= "^FO30,20^A0N,40,40^FDCADDY LOGISTICA^FS\n";
-
-        // LÍNEA HORIZONTAL
-        $zpl .= "^FO30,70^GB540,0,2^FS\n";
-
-        // ORIGEN
-        $zpl .= "^FO30,90^A0N,28,28^FDORIGEN:^FS\n";
-        // Nombre + #idProveedor en misma línea
-        $zpl .= "^FO30,125^A0N,26,26^FD{$origen} #{$idProveedor}^FS\n";
-        $zpl .= "^FO30,160^A0N,24,24^FD{$o_dir}^FS\n";
-        $zpl .= "^FO30,190^A0N,24,24^FD{$o_loc}^FS\n";
-        $zpl .= "^FO30,220^A0N,22,22^FDVenta: {$idVenta}^FS\n";
-
-        // LÍNEA
-        $zpl .= "^FO30,250^GB540,0,2^FS\n";
-
-        // CÓDIGO grande centrado
-        $zpl .= "^FO30,260^A0N,36,36^FB540,1,0,C,0^FD{$codigo}^FS\n";
-
-        // LÍNEA
-        $zpl .= "^FO30,305^GB540,0,2^FS\n";
-
-        // BLOQUE QR / CÓDIGO + DATOS A LA DERECHA
-        // QR (si la impresora soporta ^BQN)
-        $zpl .= "^FO40,320^BQN,2,6\n";
-        $zpl .= "^FDLA,{$codigo}^FS\n";
-
-        // Datos a la derecha del QR
-        $zpl .= "^FO260,320^A0N,26,26^FDCOD: {$codigo}^FS\n";
-        $zpl .= "^FO260,355^A0N,24,24^FDCP: {$cp}^FS\n";
-        $zpl .= "^FO260,385^A0N,24,24^FD{$d_loc}^FS\n";
-        if (!empty($provDest)) {
-            $zpl .= "^FO260,415^A0N,24,24^FDProv: {$provDest}^FS\n";
-        }
-        if (!empty($recorrido)) {
-            $zpl .= "^FO260,445^A0N,24,24^FDRecorrido: {$recorrido}^FS\n";
+        // Texto BULTO X/Y (si hay más de 1)
+        $textoBulto = '';
+        if ($totalBultos > 1) {
+            $textoBulto = "BULTO " . $nroBulto . "/" . $totalBultos;
         }
 
-        // LÍNEA
-        $zpl .= "^FO30,480^GB540,0,2^FS\n";
+        $zpl = "^XA
+        ^PW600
+        ^CF0,40
+        ^FO40,40^FDCADDY LOGISTICA^FS
 
-        // DESTINO
-        $zpl .= "^FO30,495^A0N,28,28^FDDESTINO:^FS\n";
-        $zpl .= "^FO30,530^A0N,26,26^FD{$dest}^FS\n";
-        $zpl .= "^FO30,560^A0N,24,24^FD{$d_dir}^FS\n";
-        $zpl .= "^FO30,590^A0N,24,24^FD{$d_loc} ({$cp})^FS\n";
-        if (!empty($tel)) {
-            $zpl .= "^FO30,620^A0N,24,24^FDTel: {$tel}^FS\n";
+        ^CF0,30
+        ^FO40,100^FDORIGEN:^FS
+        ^FO40,140^FD$origen^FS
+        ^FO40,180^FD$o_dir^FS
+        ^FO40,220^FD$o_loc^FS
+
+        ^FO40,280^FDDESTINO:^FS
+        ^FO40,320^FD$dest^FS
+        ^FO40,360^FD$d_dir^FS
+        ^FO40,400^FD$d_loc ($cp)^FS
+        ^FO40,440^FDTel: $tel^FS
+
+        ^FO40,500^FDCant: $cant  VD: $valdec  Cobranza: $cobranza^FS
+
+        ^BY3,2,120
+        ^FO80,560^BCN,120,Y,N,N
+        ^FD$codigo^FS
+
+        ^CF0,30
+        ^FO80,700^FDCOD: $codigo^FS";
+
+        if (!empty($textoBulto)) {
+            $zpl .= "
+        ^CF0,35
+        ^FO80,740^FD$textoBulto^FS";
         }
 
-        // REFERENCIAS
-        $zpl .= "^FO30,655^A0N,22,22^FDREFERENCIAS:^FS\n";
-        $zpl .= "^FO30,680^A0N,20,20^FB540,3,0,L,0^FD{$observ}^FS\n";
-
-        // (Opcional) Valor declarado / Cobranza
-        $zpl .= "^FO30,740^A0N,20,20^FDVal. dec: \${$valdecTxt} - Cobranza: \${$cobranzaTxt}^FS\n";
-
-        // PIE: Usuario / Fecha
-        $zpl .= "^FO30,780^A0N,18,18^FDU: {$usuario}  F: {$fechaImp}^FS\n";
-
-        $zpl .= "^XZ\n";
+        $zpl .= "
+        ^XZ";
 
         return $zpl;
     }
@@ -429,14 +399,16 @@ class EtiquetaService extends conexion
      */
     public function generarPDF(array $d)
     {
-        $codigo = $d['CodigoSeguimiento'] ?? 'SIN-CODIGO';
+        $codigo      = $d['CodigoSeguimiento'] ?? 'SIN-CODIGO';
+        $totalBultos = (int)($d['Cantidad'] ?? 1);
 
         if (ob_get_length()) {
             ob_end_clean();
         }
 
         $pdf = new FPDF('P', 'mm', [100, 150]);
-        $this->dibujarEtiquetaPDF($pdf, $d);
+        // como es una sola etiqueta, es BULTO 1/total
+        $this->dibujarEtiquetaPDF($pdf, $d, 1, $totalBultos);
 
         header('Content-Type: application/pdf');
         $filename = $codigo . '.pdf';
@@ -628,8 +600,6 @@ class EtiquetaService extends conexion
     //     exit;
     // }
 
-
-
     public function procesar(string $codigo, string $token, string $formato)
     {
         $tokenData = $this->validarToken($token);
@@ -650,8 +620,8 @@ class EtiquetaService extends conexion
             ];
         }
 
-        $formato  = strtolower($formato);
-        $cantidad = (int)($datos['Cantidad'] ?? 1);
+        $formato    = strtolower($formato);
+        $cantidad   = (int)($datos['Cantidad'] ?? 1);
         $codigoBase = $datos['CodigoSeguimiento'] ?? $codigo;
 
         /* ====== ZPL ====== */
@@ -663,10 +633,10 @@ class EtiquetaService extends conexion
                 for ($i = 1; $i <= $cantidad; $i++) {
                     $datosEtiqueta = $datos;
                     $datosEtiqueta['CodigoSeguimiento'] = $codigoBase . '_' . $i;
-                    $zplTotal .= $this->construirZPL($datosEtiqueta);
+                    $zplTotal .= $this->construirZPL($datosEtiqueta, $i, $cantidad);
                 }
             } else {
-                $zplTotal = $this->construirZPL($datos);
+                $zplTotal = $this->construirZPL($datos, 1, 1);
             }
 
             header('Content-Type: text/plain; charset=UTF-8');
@@ -675,31 +645,32 @@ class EtiquetaService extends conexion
         }
 
         /* ====== PDF ====== */
-        if ($cantidad > 1 && $formato === 'pdf') {
+        if ($formato === 'pdf') {
 
-            if (ob_get_length()) {
-                ob_end_clean();
+            if ($cantidad > 1) {
+                if (ob_get_length()) {
+                    ob_end_clean();
+                }
+
+                $pdf = new FPDF('P', 'mm', [100, 150]);
+
+                for ($i = 1; $i <= $cantidad; $i++) {
+                    $datosEtiqueta = $datos;
+                    $datosEtiqueta['CodigoSeguimiento'] = $codigoBase . '_' . $i;
+                    $this->dibujarEtiquetaPDF($pdf, $datosEtiqueta, $i, $cantidad);
+                }
+
+                header('Content-Type: application/pdf');
+                $filename = $codigoBase . '.pdf';
+                header('Content-Disposition: inline; filename="' . $filename . '"');
+                header("X-Robots-Tag: noindex");
+                $pdf->Output('I', $filename);
+                exit;
             }
 
-            $pdf = new FPDF('P', 'mm', [100, 150]);
-
-            for ($i = 1; $i <= $cantidad; $i++) {
-                $datosEtiqueta = $datos;
-                $datosEtiqueta['CodigoSeguimiento'] = $codigoBase . '_' . $i;
-                $this->dibujarEtiquetaPDF($pdf, $datosEtiqueta);
-            }
-
-            header('Content-Type: application/pdf');
-            $filename = $codigoBase . '.pdf';
-            header('Content-Disposition: inline; filename="' . $filename . '"');
-            header("X-Robots-Tag: noindex");
-
-            $pdf->Output('I', $filename);
-            exit;
+            // cantidad = 1 → uso el flujo normal
+            $this->generarPDF($datos);
         }
-
-        // Caso default: una sola etiqueta PDF
-        $this->generarPDF($datos);
     }
 }
 
