@@ -112,12 +112,17 @@ class EtiquetaService extends conexion
         $cant        = $d['Cantidad']          ?? 1;
         $valdec      = $d['ValorDeclarado']    ?? 0;
         $cobranza    = $d['Cobranza']          ?? 0;
-        $codigo      = $d['CodigoSeguimiento'] ?? 'SIN-CODIGO';
+        $codigoBase  = $d['CodigoSeguimiento'] ?? 'SIN-CODIGO';
         $usuario     = $d['Usuario']           ?? '';
         $fechaImp    = date('d/m/Y H:i');
         $idProveedor = $d['idProveedor']       ?? '';
         $id          = $d['id']                ?? '';
         $observaciones = $d['Observaciones']   ?? '';
+
+        // código que se muestra / imprime por bulto
+        $codigoEtiqueta = ($totalBultos > 1)
+            ? $codigoBase . '_' . $nroBulto
+            : $codigoBase;
 
         $pageWidth  = $pdf->GetPageWidth();
         $pageHeight = $pdf->GetPageHeight();
@@ -163,35 +168,27 @@ class EtiquetaService extends conexion
 
         // bajar cursor según lo más alto (logo o texto)
         $yAfterTop = max($yTop + $logoHeight, $pdf->GetY());
-        $pdf->SetY($yAfterTop + 3);
 
-        // línea
+        /* ========= BULTO X/Y DEBAJO DEL LOGO ========= */
+        if ($totalBultos > 1) {
+            $pdf->SetFont('Arial', 'B', 14);      // un poco grande
+            $pdf->SetXY($margin, $yAfterTop + 1); // debajo del logo, a la izquierda
+            $pdf->Cell(0, 7, $nroBulto . '/' . $totalBultos, 0, 1, 'L');
+            $yAfterTop = max($yAfterTop, $pdf->GetY());
+        }
+
+        // ahora sí bajamos un poco y dibujamos la línea
+        $pdf->SetY($yAfterTop + 3);
         $y = $pdf->GetY();
         $pdf->Line($margin, $y, $pageWidth - $margin, $y);
-        $pdf->Ln(1);
+        $pdf->Ln(2);
 
-        /* ========= LÍNEA CÓDIGO + BULTO ========= */
-        // Código grande
+        /* ========= CÓDIGO GRANDE (centrado) ========= */
         $pdf->SetFont('Arial', 'B', 12);
-        $pdf->Cell(0, 5, $codigo, 0, 1, 'C');
+        $pdf->Cell(0, 5, $codigoEtiqueta, 0, 1, 'C');
+        $pdf->Ln(3);
 
-        // SOLO si hay más de un bulto mostramos "BULTO X/Y"
-        // Mostrar solo "X/Y" debajo del logo (más grande)
-        if ($totalBultos > 1) {
-
-            $pdf->SetFont('Arial', 'B', 14); // más grande
-            $textoFraccion = $nroBulto . '/' . $totalBultos;
-
-            // Lo ubicamos debajo del logo
-            $pdf->SetY($yTop + $logoHeight + 2);
-            $pdf->Cell(0, 8, $textoFraccion, 0, 1, 'C');
-
-            // Y bajamos el cursor un poco
-            $pdf->Ln(2);
-        }
-        // línea
-        $pdf->Ln(1);
-
+        // línea bajo el código
         $y = $pdf->GetY();
         $pdf->Line($margin, $y, $pageWidth - $margin, $y);
         $pdf->Ln(3);
@@ -202,9 +199,9 @@ class EtiquetaService extends conexion
         $qrX    = $margin;
         $qrY    = $pdf->GetY();
 
-        if (!empty($codigo)) {
-            $tmpQR = sys_get_temp_dir() . '/qr_' . $codigo . '.png';
-            QRcode::png($codigo, $tmpQR, QR_ECLEVEL_L, 4);
+        if (!empty($codigoEtiqueta)) {
+            $tmpQR = sys_get_temp_dir() . '/qr_' . $codigoEtiqueta . '.png';
+            QRcode::png($codigoEtiqueta, $tmpQR, QR_ECLEVEL_L, 4);
 
             if (file_exists($tmpQR)) {
                 $pdf->Image($tmpQR, $qrX, $qrY, $qrSize, $qrSize);
@@ -217,7 +214,7 @@ class EtiquetaService extends conexion
 
         $pdf->SetXY($xDatosQR, $qrY);
         $pdf->SetFont('Arial', 'B', 9);
-        $pdf->Cell($wDatosQR, 5, $codigo, 0, 1, 'L');
+        $pdf->Cell($wDatosQR, 5, $codigoEtiqueta, 0, 1, 'L');
 
         $pdf->SetFont('Arial', '', 9);
         $pdf->SetX($xDatosQR);
@@ -262,7 +259,7 @@ class EtiquetaService extends conexion
         $pdf->SetFont('Arial', '', 7);
         $pdf->Cell(0, 4, 'Usuario: ' . $usuario . '  |  Fecha: ' . $fechaImp, 0, 1, 'R');
 
-        // Marco punteado (si ya lo tenías):
+        // Marco punteado
         $x = 2;
         $y = 2;
         $w = 96;
