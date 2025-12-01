@@ -91,59 +91,6 @@ class EtiquetaService extends conexion
         return $datos ? $datos[0] : null;
     }
 
-    /**
-     * Construir string ZPL para impresora Zebra
-     */
-    // public function construirZPL(array $d): string
-    // {
-    //     // Valores de fallback por si faltara algo
-    //     $origen  = $d['OrigenNombre']      ?? '';
-    //     $o_dir   = $d['OrigenDireccion']   ?? '';
-    //     $o_loc   = $d['OrigenLocalidad']   ?? '';
-    //     $dest    = $d['ClienteDestino']    ?? '';
-    //     $d_dir   = $d['DomicilioDestino']  ?? '';
-    //     $d_loc   = $d['LocalidadDestino']  ?? '';
-    //     $cp      = $d['cpdestino']         ?? '';
-    //     $tel     = $d['Telefono']          ?? '';
-    //     $cant    = $d['Cantidad']          ?? 1;
-    //     $valdec  = $d['ValorDeclarado']    ?? 0;
-    //     $cobranza = $d['Cobranza']          ?? 0;
-    //     $codigo  = $d['CodigoSeguimiento'] ?? '';
-    //     $idProveedor = $d['idProveedor'] ?? '';
-    //     $id = $d['id'] ?? '';
-    //     $observaciones = $d['Observaciones'] ?? '';
-
-    //     $zpl = "^XA
-    //     ^PW600
-    //     ^CF0,40
-    //     ^FO40,40^FDCADDY LOGISTICA^FS
-
-    //     ^CF0,30
-    //     ^FO40,100^FDORIGEN:^FS
-    //     ^FO40,140^FD$origen^FS
-    //     ^FO40,180^FD$o_dir^FS
-    //     ^FO40,220^FD$o_loc^FS
-
-    //     ^FO40,280^FDDESTINO:^FS
-    //     ^FO40,320^FD$dest^FS
-    //     ^FO40,360^FD$d_dir^FS
-    //     ^FO40,400^FD$d_loc ($cp)^FS
-    //     ^FO40,440^FDTel: $tel^FS
-
-    //     ^FO40,500^FDCant: $cant  VD: $valdec  Cobranza: $cobranza^FS
-
-    //     ^BY3,2,120
-    //     ^FO80,560^BCN,120,Y,N,N
-    //     ^FD$codigo^FS
-
-    //     ^CF0,30
-    //     ^FO80,700^FDCOD: $codigo^FS
-
-    //     ^XZ";
-
-    //     return $zpl;
-    // }
-
     private function dibujarEtiquetaPDF(FPDF $pdf, array $d, int $nroBulto = 1, int $totalBultos = 1): void
     {
         $margin = 5;
@@ -229,10 +176,6 @@ class EtiquetaService extends conexion
         $pdf->Cell(0, 5, $codigo, 0, 1, 'C');
 
         // SOLO si hay más de un bulto mostramos "BULTO X/Y"
-        // if ($totalBultos > 1) {
-        //     $pdf->SetFont('Arial', 'B', 11);
-        //     $pdf->Cell(0, 5, 'BULTO ' . $nroBulto . '/' . $totalBultos, 0, 1, 'C');
-        // }
         // Mostrar solo "X/Y" debajo del logo (más grande)
         if ($totalBultos > 1) {
 
@@ -330,10 +273,6 @@ class EtiquetaService extends conexion
         $this->dashedLine($pdf, $x + $w, $y, $x + $w, $y + $h);
     }
 
-
-
-
-
     // Helper opcional para normalizar texto a ZPL (ISO-8859-1)
     private function zplTxt(string $txt): string
     {
@@ -427,6 +366,9 @@ class EtiquetaService extends conexion
         $filename = $codigo . '.pdf';
         header('Content-Disposition: inline; filename="' . $filename . '"');
         header("X-Robots-Tag: noindex");
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
 
         $pdf->Output('I', $filename);
         exit;
@@ -496,6 +438,11 @@ class EtiquetaService extends conexion
                 $filename = $codigoBase . '.pdf';
                 header('Content-Disposition: inline; filename="' . $filename . '"');
                 header("X-Robots-Tag: noindex");
+
+                header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+
                 $pdf->Output('I', $filename);
                 exit;
             }
