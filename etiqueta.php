@@ -120,9 +120,10 @@ class EtiquetaService extends conexion
         $observaciones = $d['Observaciones']   ?? '';
 
         // código que se muestra / imprime por bulto
-        $codigoEtiqueta = ($totalBultos > 1)
-            ? $codigoBase . '_' . $nroBulto
-            : $codigoBase;
+        // $codigoEtiqueta = ($totalBultos > 1)
+        //     ? $codigoBase . '_' . $nroBulto
+        //     : $codigoBase;
+        $codigoEtiqueta = $d['CodigoSeguimiento'] ?? 'SIN-CODIGO';
 
         $pageWidth  = $pdf->GetPageWidth();
         $pageHeight = $pdf->GetPageHeight();
