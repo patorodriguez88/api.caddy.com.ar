@@ -114,32 +114,32 @@ class EtiquetaService extends conexion
         $observaciones = $d['Observaciones'] ?? '';
 
         $zpl = "^XA
-^PW600
-^CF0,40
-^FO40,40^FDCADDY LOGISTICA^FS
+        ^PW600
+        ^CF0,40
+        ^FO40,40^FDCADDY LOGISTICA^FS
 
-^CF0,30
-^FO40,100^FDORIGEN:^FS
-^FO40,140^FD$origen^FS
-^FO40,180^FD$o_dir^FS
-^FO40,220^FD$o_loc^FS
+        ^CF0,30
+        ^FO40,100^FDORIGEN:^FS
+        ^FO40,140^FD$origen^FS
+        ^FO40,180^FD$o_dir^FS
+        ^FO40,220^FD$o_loc^FS
 
-^FO40,280^FDDESTINO:^FS
-^FO40,320^FD$dest^FS
-^FO40,360^FD$d_dir^FS
-^FO40,400^FD$d_loc ($cp)^FS
-^FO40,440^FDTel: $tel^FS
+        ^FO40,280^FDDESTINO:^FS
+        ^FO40,320^FD$dest^FS
+        ^FO40,360^FD$d_dir^FS
+        ^FO40,400^FD$d_loc ($cp)^FS
+        ^FO40,440^FDTel: $tel^FS
 
-^FO40,500^FDCant: $cant  VD: $valdec  Cobranza: $cobranza^FS
+        ^FO40,500^FDCant: $cant  VD: $valdec  Cobranza: $cobranza^FS
 
-^BY3,2,120
-^FO80,560^BCN,120,Y,N,N
-^FD$codigo^FS
+        ^BY3,2,120
+        ^FO80,560^BCN,120,Y,N,N
+        ^FD$codigo^FS
 
-^CF0,30
-^FO80,700^FDCOD: $codigo^FS
+        ^CF0,30
+        ^FO80,700^FDCOD: $codigo^FS
 
-^XZ";
+        ^XZ";
 
         return $zpl;
     }
@@ -359,9 +359,27 @@ class EtiquetaService extends conexion
             exit;
         }
 
+        // --- SI HAY MÁS DE 1 CANTIDAD, GENERAR MULTI-ETIQUETAS ---
         // Default = PDF
-        $this->generarPDF($datos);
-        // generarPDF ya hace exit()
+
+        $cantidad = $datos['Cantidad'] ?? 1;
+
+        if ($cantidad > 1 && strtolower($formato) === 'pdf') {
+
+            for ($i = 1; $i <= $cantidad; $i++) {
+
+                // Clonamos los datos de la etiqueta
+                $datosEtiqueta = $datos;
+
+                // Agregamos sufijo al código
+                $datosEtiqueta['CodigoSeguimiento'] = $datos['CodigoSeguimiento'] . "_" . $i;
+
+                // Generamos cada PDF individual
+                $this->generarPDF($datosEtiqueta);
+            }
+
+            exit;
+        }
     }
 }
 
