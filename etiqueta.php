@@ -180,7 +180,7 @@ class EtiquetaService extends conexion
         /* ========= BULTO X/Y DEBAJO DEL LOGO (AJUSTADO) ========= */
         if ($totalBultos > 1) {
 
-            $pdf->SetFont('Arial', 'B', 18); // 👈 MÁS GRANDE
+            $pdf->SetFont('Arial', 'B', 20); // 👈 MÁS GRANDE
 
             // Subimos un poco: antes era +1, ahora -2 para pegarlo más al logo
             $alturaFraccion = $yTop + $logoHeight - 2;
