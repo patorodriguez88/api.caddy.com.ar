@@ -170,13 +170,29 @@ class EtiquetaService extends conexion
         $yAfterTop = max($yTop + $logoHeight, $pdf->GetY());
 
         /* ========= BULTO X/Y DEBAJO DEL LOGO ========= */
+        // if ($totalBultos > 1) {
+        //     $pdf->SetFont('Arial', 'B', 14);      // un poco grande
+        //     $pdf->SetXY($margin, $yAfterTop + 1); // debajo del logo, a la izquierda
+        //     $pdf->Cell(0, 7, $nroBulto . '/' . $totalBultos, 0, 1, 'L');
+        //     $yAfterTop = max($yAfterTop, $pdf->GetY());
+        // }
+        /* ========= BULTO X/Y DEBAJO DEL LOGO (AJUSTADO) ========= */
         if ($totalBultos > 1) {
-            $pdf->SetFont('Arial', 'B', 14);      // un poco grande
-            $pdf->SetXY($margin, $yAfterTop + 1); // debajo del logo, a la izquierda
-            $pdf->Cell(0, 7, $nroBulto . '/' . $totalBultos, 0, 1, 'L');
-            $yAfterTop = max($yAfterTop, $pdf->GetY());
-        }
 
+            $pdf->SetFont('Arial', 'B', 18); // 👈 MÁS GRANDE
+
+            // Subimos un poco: antes era +1, ahora -2 para pegarlo más al logo
+            $alturaFraccion = $yTop + $logoHeight - 2;
+
+            // Posición: debajo del logo, más arriba y más visible
+            $pdf->SetXY($margin, $alturaFraccion);
+
+            // Texto tipo “1/3”
+            $pdf->Cell(0, 10, $nroBulto . '/' . $totalBultos, 0, 1, 'L');
+
+            // Actualizamos el Y final del bloque superior para continuar sin pisar
+            $yAfterTop = max($alturaFraccion + 10, $pdf->GetY());
+        }
         // ahora sí bajamos un poco y dibujamos la línea
         $pdf->SetY($yAfterTop + 3);
         $y = $pdf->GetY();
