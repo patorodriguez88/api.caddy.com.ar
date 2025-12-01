@@ -37,6 +37,31 @@ class EtiquetaService extends conexion
         return $resp ? $resp[0] : null;
     }
 
+    private function dashedLine($pdf, $x1, $y1, $x2, $y2, $dash = 1, $gap = 1)
+    {
+        $pdf->SetLineWidth(0.2);
+        $pdf->SetDrawColor(0, 0, 0);
+
+        $dx = $x2 - $x1;
+        $dy = $y2 - $y1;
+        $dist = sqrt($dx * $dx + $dy * $dy);
+        $dashGapCount = $dist / ($dash + $gap);
+        $dashX = $dx / $dashGapCount;
+        $dashY = $dy / $dashGapCount;
+
+        for ($i = 0; $i < $dashGapCount; $i += 2) {
+            $pdf->Line(
+                $x1 + ($dashX * $i),
+                $y1 + ($dashY * $i),
+                $x1 + ($dashX * ($i + 1)),
+                $y1 + ($dashY * ($i + 1))
+            );
+        }
+    }
+
+
+
+
     /**
      * Datos de la venta / envío a partir del Código de Seguimiento
      */
@@ -282,20 +307,26 @@ class EtiquetaService extends conexion
             ob_end_clean();
         }
 
+        // Límites
+        $x = 2;
+        $y = 2;
+        $w = 96;
+        $h = 146;
+
+        // Marco punteado
+        $this->dashedLine($pdf, $x, $y, $x + $w, $y);           // arriba
+        $this->dashedLine($pdf, $x, $y + $h, $x + $w, $y + $h); // abajo
+        $this->dashedLine($pdf, $x, $y, $x, $y + $h);           // izquierda
+        $this->dashedLine($pdf, $x + $w, $y, $x + $w, $y + $h); // derecha
+
         header('Content-Type: application/pdf');
         // nombre SOLO el código
         $filename = $codigo . '.pdf';
         header('Content-Disposition: inline; filename="' . $filename . '"');
         header("X-Robots-Tag: noindex");
-
         $pdf->Output('I', $filename);
         exit;
     }
-
-
-
-
-
 
 
 
