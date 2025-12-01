@@ -365,7 +365,7 @@ class EtiquetaService extends conexion
         // Texto BULTO X/Y (si hay más de 1)
         $textoBulto = '';
         if ($totalBultos > 1) {
-            $textoBulto = "BULTO " . $nroBulto . "/" . $totalBultos;
+            $textoBulto = $nroBulto . "/" . $totalBultos;
         }
 
         $zpl = "^XA
