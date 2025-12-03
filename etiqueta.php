@@ -28,10 +28,10 @@ class EtiquetaService extends conexion
     private function validarToken(string $token)
     {
         $this->token = $token;
-        $query = "SELECT TokenId,UsuarioId,Estado 
-                  FROM usuarios_token 
-                  WHERE Token = '" . $this->token . "' 
-                    AND Estado = 'Activo'";
+
+        $query = "SELECT ut.TokenId,ut.UsuarioId,ut.Estado,u.NdeCliente 
+                FROM usuarios_token as ut join usuarios as u ON ut.UsuarioId=u.id 
+                WHERE ut.Token='" . $this->token . "' AND ut.Estado='Activo'";
 
         $resp = $this->obtenerDatos($query);
         return $resp ? $resp[0] : null;
@@ -65,9 +65,12 @@ class EtiquetaService extends conexion
     /**
      * Datos de la venta / envío a partir del Código de Seguimiento
      */
-    public function obtenerDatosEnvio(string $codigoSeguimiento)
+
+    public function obtenerDatosEnvio(string $codigoSeguimiento, int $idOrigen)
     {
         // 1) PRIMERO BUSCO EN TRANSCLIENTES
+        $idOrigen = (int)$idOrigen; // por las dudas
+
         $query_transclientes = "
         SELECT 
             tc.id,
@@ -78,25 +81,26 @@ class EtiquetaService extends conexion
             tc.ClienteDestino,
             tc.DomicilioDestino,
             tc.LocalidadDestino,
-            c.CodigoPostal       AS cpdestino,      -- 👈 mismo nombre que en PreVenta
-            tc.TelefonoDestino   AS Telefono,       -- 👈 mismo nombre que en PreVenta
+            c.CodigoPostal       AS cpdestino,      -- mismo nombre que en PreVenta
+            tc.TelefonoDestino   AS Telefono,       -- mismo nombre que en PreVenta
             tc.Cantidad,
             tc.ValorDeclarado,
-            tc.CobrarEnvio       AS Cobranza,       -- 👈 mismo nombre que en PreVenta
+            tc.CobrarEnvio       AS Cobranza,       -- mismo nombre que en PreVenta
             tc.CodigoSeguimiento,
-            tc.CodigoProveedor   AS idProveedor,    -- 👈 mismo nombre que en PreVenta
+            tc.CodigoProveedor   AS idProveedor,    -- mismo nombre que en PreVenta
             tc.Observaciones
         FROM TransClientes AS tc
         JOIN Clientes AS c ON tc.idClienteDestino = c.id
         WHERE tc.CodigoSeguimiento = '" . $codigoSeguimiento . "'
           AND tc.Eliminado = '0'
+          AND tc.IngBrutosOrigen = '" . $idOrigen . "'
         LIMIT 1
     ";
 
         $datos = $this->obtenerDatos($query_transclientes);
 
         if ($datos && isset($datos[0])) {
-            return $datos[0];   // 👈 si está en TransClientes, ya está
+            return $datos[0];   // 👈 el paquete pertenece al cliente del token
         }
 
         // 2) SI NO HAY DATOS EN TRANSCLIENTES, BUSCO EN PREVENTA
@@ -121,6 +125,7 @@ class EtiquetaService extends conexion
         FROM PreVenta
         WHERE CodigoSeguimiento = '" . $codigoSeguimiento . "'
           AND Eliminado = '0'
+          AND NCliente = '" . $idOrigen . "'
         LIMIT 1
     ";
 
@@ -130,7 +135,7 @@ class EtiquetaService extends conexion
             return $datos[0];
         }
 
-        // 3) SI NO SE ENCONTRÓ NI EN TRANSCLIENTES NI EN PREVENTA
+        // 3) SI NO SE ENCONTRÓ NI EN TRANSCLIENTES NI EN PREVENTA PARA ESE CLIENTE
         return null;
     }
 
@@ -448,6 +453,7 @@ class EtiquetaService extends conexion
         exit;
     }
 
+
     public function procesar(string $codigo, string $token, string $formato)
     {
         $tokenData = $this->validarToken($token);
@@ -459,12 +465,17 @@ class EtiquetaService extends conexion
             ];
         }
 
-        $datos = $this->obtenerDatosEnvio($codigo);
+        // 👉 Este es el id de cliente origen (tabla Clientes.id)
+        $idOrigen = (int)$tokenData['NdeCliente'];
+
+        // 👉 Ahora SÍ filtramos por dueño del paquete
+        $datos = $this->obtenerDatosEnvio($codigo, $idOrigen);
+
         if (!$datos) {
             return [
                 'error'  => true,
                 'tipo'   => 'no_encontrado',
-                'detail' => 'No se encontro ningun envio con ese CodigoSeguimiento'
+                'detail' => 'No se encontro ningun envio con ese CodigoSeguimiento para este cliente'
             ];
         }
 
