@@ -304,6 +304,7 @@ class EtiquetaService extends conexion
         $idProveedor = $d['idProveedor']   ?? '';
         $id = $d['id']                     ?? '';
         $observaciones = $d['Observaciones'] ?? '';
+        $recorrido = '';
 
         // Texto BULTO X/Y (si hay más de 1)
         $textoBulto = '';
@@ -311,41 +312,93 @@ class EtiquetaService extends conexion
             $textoBulto = $nroBulto . "/" . $totalBultos;
         }
 
-        $zpl = "^XA
-        ^PW600
-        ^CF0,40
-        ^FO40,40^FDCADDY LOGISTICA^FS
+        // $zpl = "^XA
+        // ^PW600
+        // ^CF0,40
+        // ^FO40,40^FDCADDY LOGISTICA^FS
 
-        ^CF0,30
-        ^FO40,100^FDORIGEN:^FS
-        ^FO40,140^FD$origen^FS
-        ^FO40,180^FD$o_dir^FS
-        ^FO40,220^FD$o_loc^FS
+        // ^CF0,30
+        // ^FO40,100^FDORIGEN:^FS
+        // ^FO40,140^FD$origen^FS
+        // ^FO40,180^FD$o_dir^FS
+        // ^FO40,220^FD$o_loc^FS
 
-        ^FO40,280^FDDESTINO:^FS
-        ^FO40,320^FD$dest^FS
-        ^FO40,360^FD$d_dir^FS
-        ^FO40,400^FD$d_loc ($cp)^FS
-        ^FO40,440^FDTel: $tel^FS
+        // ^FO40,280^FDDESTINO:^FS
+        // ^FO40,320^FD$dest^FS
+        // ^FO40,360^FD$d_dir^FS
+        // ^FO40,400^FD$d_loc ($cp)^FS
+        // ^FO40,440^FDTel: $tel^FS
 
-        ^FO40,500^FDCant: $cant  VD: $valdec  Cobranza: $cobranza^FS
+        // ^FO40,500^FDCant: $cant  VD: $valdec  Cobranza: $cobranza^FS
 
-        ^BY3,2,120
-        ^FO80,560^BCN,120,Y,N,N
-        ^FD$codigo^FS
+        // ^BY3,2,120
+        // ^FO80,560^BCN,120,Y,N,N
+        // ^FD$codigo^FS
 
-        ^CF0,30
-        ^FO80,700^FDCOD: $codigo^FS";
+        // ^CF0,30
+        // ^FO80,700^FDCOD: $codigo^FS";
 
-        if (!empty($textoBulto)) {
-            $zpl .= "
-        ^CF0,35
-        ^FO80,740^FD$textoBulto^FS";
-        }
+        // if (!empty($textoBulto)) {
+        //     $zpl .= "
+        // ^CF0,35
+        // ^FO80,740^FD$textoBulto^FS";
+        // }
 
-        $zpl .= "
-        ^XZ";
+        // $zpl .= "
+        // ^XZ";
 
+        $zpl = '^XA' +
+            '^CI28' +
+            '^LH0,10' +
+            '^FX  Is Product  ^FS' +
+            '^FX  Quantity  ^FS' +
+            '^FO30,120^A0N,70,70^FB160,1,0,C^FD' + $textoBulto + '^FS' +
+            '^FX Logo Caddy^FS^' +
+            '^FO15,5^ILE:LOGOCADD.GRF^FS' +
+            '^FO35,200^A0N,25,25^FB150,1,0,C^FH^FDCantidad^FS' +
+            '^FX  Product title  ^FS' +
+            '^FO250,25^A0N,50,50^FB570,1,-1^FH^FD' + $d_loc + '^FS' +
+            '^FO700,25^A0N,50,50^FB570,1,-1^FH^FD' + 'Córdoba' + '^FS' +
+            '^FX  Variations  ^FS' +
+            '^FO190,70^A0N,20,20^FB570,1,-1^FDDestino^FS' +
+            '^FO190,95^A0N,24,24^FB570,1,-1^FDNombre: ' + $dest + '^FS' +
+            '^FO190,120^A0N,20,20^FB570,1,-1^FDDireccion: ' + $d_dir + '^FS' +
+            '^FO190,145^A0N,24,24^FB570,1,-1^FDRecorrido: ' + $recorrido + '^FS' +
+            '^FX SKU ^FS' +
+            '^FO200,190^A0N,30,30^FDSKU: ^FS' +
+            '^FO265,192^A0N,25,25^FB510,1,-1^FH^FD' + $id + '^FS' +
+            '^FO0,225^GB850,2,1^FS' +
+            '^FX Order id ^FS' +
+            '^FO40,245^A0N,28,28^FDN.Venta: ^FS' +
+            '^FO41,245^A0N,28,28^FDN.Venta: ^FS' +
+            '^FO130,249^A0N,25,25^FD^FS' +
+            '^FO192,245^A0N,30,30^FD' + $id + '^FS' +
+            '^FO193,245^A0N,30,30^FD' + $id + '^FS' +
+            '^FX Tracking number ^FS' +
+            '^FO299,245^A0N,28,28^FDTracking: ^FS' +
+            '^FO300,245^A0N,28,28^FDTracking: ^FS' +
+            '^FO410,246^A0N,26,26^FD' + $codigo + '^FS' +
+            '^FO0,300^GB850,1,1^FS' +
+            '^LH0,320^FX  HEADER  ^FS' +
+            '^FO120,0^A0N,20,20^FH^FDOrigen^FS' +
+            '^FO120,22^A0N,24,24^FH^FDNombre: #' + $origen + ' ' + $idProveedor + '^FS' +
+            '^FO120,65^A0N,24,24^FB660,2,0,L^FH^FDDireccion Destino: ' + $o_dir + '^FS' +
+            '^FO120,100^A0N,24,24^FB660,2,0,L^FH^FD  CP 1437^FS' +
+            '^FO120,135^A0N,24,24^FDN.Venta: ^FS' +
+            '^FO255,132^A0N,27,27^FD' + $id + '^FS' +
+            '^FO500,135^A0N,24,24^FDSKU TC: ^FS' +
+            '^FO652,132^A0N,27,27^FD' + $id + '^FS^FX 1 Horizontal Line ^FS^FO0,170^GB850,0,2^FS' +
+            '^FO0,185^A0N,48,48^FB800,1,0,C^FDCaddy Yo lo llevo!^FS' +
+            '^FX 2 Horizontal Line ^FS' +
+            '^FO0,235^GB850,0,2^FS' +
+            '^FX QR Code ^FS' +
+            '^FO10,250^A0N,16,18^FDPodes seguir tu envío en nuestra web con el Código ' + $codigo + ' o escaneando con tu teléfono el QR.^FS' +
+            '^FO260,270^BY4,4,0^BQN,2,4^FDLA,{\"id\":\"https://www.caddy.com.ar/seguimiento.html?codigo=' + $codigo + '\",\"sender_id\":3987654312,\"hash_code\":\"fyePAxtasdOM/kZgZZDSAH+h1JBckgknsg2R3754ERKI=\",\"security_digit\":\"0\"}^FS' +
+            '^FO10,290^A0N,20,20^FDCódigo Wepoint:^FS' +
+            '^FO20,310^BY3,2,0^BQN,2,4^FDLA,' + $codigo + '^FS' +
+            '^FO10,440^A0N,20,20^FDwww.caddy.com.ar^FS' +
+            '^FO500,440^A0N,20,20^FDUsuario: API CADDY ^FS' +
+            '^XZ';
         return $zpl;
     }
 
