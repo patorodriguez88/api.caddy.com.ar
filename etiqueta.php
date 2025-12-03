@@ -67,28 +67,71 @@ class EtiquetaService extends conexion
      */
     public function obtenerDatosEnvio(string $codigoSeguimiento)
     {
-        $query = "SELECT 
-                    id,Fecha,
-                    RazonSocial       AS OrigenNombre,
-                    DomicilioOrigen   AS OrigenDireccion,
-                    LocalidadOrigen   AS OrigenLocalidad,
-                    ClienteDestino,
-                    DomicilioDestino,
-                    LocalidadDestino,
-                    cpdestino,
-                    Telefono,
-                    Cantidad,
-                    ValorDeclarado,
-                    Cobranza,
-                    CodigoSeguimiento,
-                    idProveedor,
-                    Observaciones
-                  FROM PreVenta
-                  WHERE CodigoSeguimiento = '" . $codigoSeguimiento . "'
-                  LIMIT 1";
+        // 1) PRIMERO BUSCO EN TRANSCLIENTES
+        $query_transclientes = "
+        SELECT 
+            tc.id,
+            tc.Fecha,
+            tc.RazonSocial       AS OrigenNombre,
+            tc.DomicilioOrigen   AS OrigenDireccion,
+            tc.LocalidadOrigen   AS OrigenLocalidad,
+            tc.ClienteDestino,
+            tc.DomicilioDestino,
+            tc.LocalidadDestino,
+            c.CodigoPostal       AS cpdestino,      -- 👈 mismo nombre que en PreVenta
+            tc.TelefonoDestino   AS Telefono,       -- 👈 mismo nombre que en PreVenta
+            tc.Cantidad,
+            tc.ValorDeclarado,
+            tc.CobrarEnvio       AS Cobranza,       -- 👈 mismo nombre que en PreVenta
+            tc.CodigoSeguimiento,
+            tc.CodigoProveedor   AS idProveedor,    -- 👈 mismo nombre que en PreVenta
+            tc.Observaciones
+        FROM TransClientes AS tc
+        JOIN Clientes AS c ON tc.idClienteDestino = c.id
+        WHERE tc.CodigoSeguimiento = '" . $codigoSeguimiento . "'
+          AND tc.Eliminado = '0'
+        LIMIT 1
+    ";
 
-        $datos = $this->obtenerDatos($query);
-        return $datos ? $datos[0] : null;
+        $datos = $this->obtenerDatos($query_transclientes);
+
+        if ($datos && isset($datos[0])) {
+            return $datos[0];   // 👈 si está en TransClientes, ya está
+        }
+
+        // 2) SI NO HAY DATOS EN TRANSCLIENTES, BUSCO EN PREVENTA
+        $query_preventa = "
+        SELECT 
+            id,
+            Fecha,
+            RazonSocial       AS OrigenNombre,
+            DomicilioOrigen   AS OrigenDireccion,
+            LocalidadOrigen   AS OrigenLocalidad,
+            ClienteDestino,
+            DomicilioDestino,
+            LocalidadDestino,
+            cpdestino,
+            Telefono,
+            Cantidad,
+            ValorDeclarado,
+            Cobranza,
+            CodigoSeguimiento,
+            idProveedor,
+            Observaciones
+        FROM PreVenta
+        WHERE CodigoSeguimiento = '" . $codigoSeguimiento . "'
+          AND Eliminado = '0'
+        LIMIT 1
+    ";
+
+        $datos = $this->obtenerDatos($query_preventa);
+
+        if ($datos && isset($datos[0])) {
+            return $datos[0];
+        }
+
+        // 3) SI NO SE ENCONTRÓ NI EN TRANSCLIENTES NI EN PREVENTA
+        return null;
     }
 
     private function dibujarEtiquetaPDF(FPDF $pdf, array $d, int $nroBulto = 1, int $totalBultos = 1): void
