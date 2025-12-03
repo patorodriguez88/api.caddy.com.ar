@@ -256,7 +256,7 @@ class EtiquetaService extends conexion
         $pdf->Cell(0, 4, $this->pdfTxt($d_dir), 0, 1, 'L');
         $pdf->Cell(0, 4, $this->pdfTxt($d_loc . ' (' . $cp . ')'), 0, 1, 'L');
         if (!empty($tel)) {
-            $pdf->Cell(0, 4, 'Tel: ' . $tel, 0, 1, 'L');
+            // $pdf->Cell(0, 4, 'Tel: ' . $tel, 0, 1, 'L');
         }
         $pdf->Cell(0, 5, 'REFERENCIAS: ' . $this->pdfTxt($observaciones), 0, 1, 'L');
         $pdf->Ln(2);
