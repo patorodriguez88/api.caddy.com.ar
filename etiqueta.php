@@ -1,11 +1,12 @@
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
+$headers = function_exists('getallheaders') ? getallheaders() : [];
+file_put_contents(__DIR__ . '/debug_headers.log', print_r($headers, true), FILE_APPEND);
+
 // Opcional: iniciar buffer de salida para poder limpiar antes del PDF
 if (ob_get_length() === false) {
-    // justo después de ob_start();
-    $headers = function_exists('getallheaders') ? getallheaders() : [];
-    file_put_contents(__DIR__ . '/debug_headers.log', print_r($headers, true), FILE_APPEND);
+
     ob_start();
 }
 
