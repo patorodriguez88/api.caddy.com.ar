@@ -23,10 +23,12 @@ RewriteRule ^(src|vendor)/ - [F,L]
 RewriteCond %{REQUEST_METHOD} =OPTIONS
 RewriteRule ^ - [R=204,L]
 
-<FilesMatch "\.(env|ini|ya?ml|json|lock|sql|bak)$">
+# Bloqueamos solo cosas realmente sensibles
+<FilesMatch "\.(env|ini|lock|sql|bak)$">
   Require all denied
 </FilesMatch>
 
+# Configuración de CORS
 <IfModule mod_headers.c>
   Header always set Access-Control-Allow-Origin "https://api.caddy.com.ar"
   Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
