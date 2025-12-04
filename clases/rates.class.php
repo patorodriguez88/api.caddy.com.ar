@@ -1,6 +1,9 @@
 <?php
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
+
 require_once "conexion/conexion.php";
-require_once "clases/Token.php";
+require_once "clases/token.php";
 require_once "respuestas.class.php";
 
 date_default_timezone_set('America/Argentina/Cordoba');
