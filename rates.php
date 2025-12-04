@@ -6,7 +6,7 @@ require_once 'clases/respuestas.class.php';
 require_once 'clases/rates.class.php';   // 👈 O el nombre final que uses
 
 $_respuestas = new respuestas();
-$rates       = new RatesV2();
+$rates       = new Rates();
 
 header('Content-Type: application/json; charset=utf-8');
 

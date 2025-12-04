@@ -12,7 +12,8 @@ date_default_timezone_set('America/Argentina/Cordoba');
  * Cotizaciones (GET), ahora usando Token centralizado (Bearer / ?token=)
  * y listo para PHP 8.
  */
-class RatesV2 extends conexion
+
+class Rates extends conexion
 {
     private string $cp = '';
     private float  $length = 0.0;
@@ -292,6 +293,7 @@ class RatesV2 extends conexion
             4 => 'Jueves',
             5 => 'Viernes',
             6 => 'Sábado',
+            default => 'Desconocido',
         };
     }
 
@@ -371,11 +373,11 @@ class RatesV2 extends conexion
     }
 
     // Ya no lo usamos para cotizar, pero lo dejo por si lo reutilizás en otro lado
-    private function buscarToken()
-    {
-        $q = "SELECT TokenId,UsuarioId,Estado FROM usuarios_token
-          WHERE Token = '" . $this->token . "' AND Estado = 'Activo'";
-        $resp = parent::obtenerDatos($q);
-        return $resp ? $resp : 0;
-    }
+    // private function buscarToken()
+    // {
+    //     $q = "SELECT TokenId,UsuarioId,Estado FROM usuarios_token
+    //       WHERE Token = '" . $this->token . "' AND Estado = 'Activo'";
+    //     $resp = parent::obtenerDatos($q);
+    //     return $resp ? $resp : 0;
+    // }
 }
