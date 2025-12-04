@@ -91,9 +91,20 @@ class Rates extends conexion
         $this->valorDeclarado = isset($p['valorDeclarado']) ? (float)$p['valorDeclarado']  : 0.0;
         $this->flex           = isset($p['flex'])           ? (int)$p['flex']              : 0;
 
-        // Etiqueta de servicio
-        $this->servicio_label = isset($p['servicio']) ? 'Retiro y Entrega' : 'Solo Entrega';
+        // Etiqueta de servicio según código
+        if (isset($p['servicio'])) {
+            $this->servicio = (int)$p['servicio'];
+        } else {
+            $this->servicio = 1; // por defecto
+        }
 
+        if ($this->servicio === 1) {
+            $this->servicio_label = 'Retiro y Entrega';
+        } elseif ($this->servicio === 3) {
+            $this->servicio_label = 'Retiro y Entrega (Flex)';
+        } else {
+            $this->servicio_label = 'Solo Entrega';
+        }
         /* ==========================
          * 4) Seguro mínimo
          * ========================== */
@@ -192,6 +203,10 @@ class Rates extends conexion
         $precioVenta = (float)$price[0]['PrecioVenta'];
         $total       = ($this->cantidad * $precioVenta) + $surePrice;
 
+        // Labels redondeados (siempre)
+        $price_label = (int)round($precioVenta);
+        $total_label = (int)round($total);
+
         if ($esCapital) {
             $citydestination = 'Cordoba Capital';
             $hora  = (int)date('G');
@@ -209,25 +224,33 @@ class Rates extends conexion
         }
 
         // Cliente origen según UsuarioId del token
-        $usuarioId     = (int)($tokenInfo['UsuarioId'] ?? 0);
-        $datos_cliente = $this->clienteOrigen($usuarioId);
+        $usuarioId = (int)($tokenInfo['UsuarioId'] ?? 0);
+        $cliente   = $this->clienteOrigen($usuarioId);
 
-        $price_label = (int)round($precioVenta);
-        $total_label = (int)round($total);
+        // Por defecto: no insertamos nada
+        $id_quote = 0;
 
-        $id_quote = $this->insert_quote(
-            $datos_cliente[0]['id']            ?? 0,
-            $datos_cliente[0]['nombrecliente'] ?? '',
-            $price[0]['Titulo'],
-            $price_label,
-            $citydestination,
-            $this->length,
-            $this->width,
-            $this->height,
-            $this->weight,
-            $km,
-            $send_date
-        );
+        if ($cliente !== null) {
+            $clienteId   = (int)($cliente['id'] ?? 0);
+            $clienteName = (string)($cliente['nombrecliente'] ?? '');
+
+            // Solo insertamos si tenemos id y nombre
+            if ($clienteId > 0 && $clienteName !== '') {
+                $id_quote = $this->insert_quote(
+                    $clienteId,
+                    $clienteName,
+                    $price[0]['Titulo'],
+                    $price_label,
+                    $citydestination,
+                    $this->length,
+                    $this->width,
+                    $this->height,
+                    $this->weight,
+                    $km,
+                    $send_date
+                );
+            }
+        }
 
         $respuesta = $_resp->response;
         $respuesta['result'] = [
@@ -353,13 +376,36 @@ class Rates extends conexion
         return $resp ? $resp : 4;
     }
 
-    public function clienteOrigen($usuarioId)
+    public function clienteOrigen(int $usuarioId): ?array
     {
-        $q1 = "SELECT NdeCliente FROM usuarios WHERE id = '" . $usuarioId . "'";
+        // 1) Buscamos NdeCliente del usuario
+        $q1 = "SELECT NdeCliente 
+           FROM usuarios 
+           WHERE id = '" . $usuarioId . "' 
+             AND Estado = 'Activo' 
+             AND ACTIVO = 1 
+             AND NIVEL = 4";
         $r1 = parent::obtenerDatos($q1);
-        $nde = ($r1 && isset($r1[0]['NdeCliente'])) ? $r1[0]['NdeCliente'] : 0;
-        $q2 = "SELECT nombrecliente,id,Direccion FROM Clientes WHERE id = '" . $nde . "'";
-        return parent::obtenerDatos($q2);
+
+        // Si no hay fila o no tiene NdeCliente -> no hay cliente asociado
+        if (!$r1 || empty($r1[0]['NdeCliente'])) {
+            return null;
+        }
+
+        $nde = $r1[0]['NdeCliente'];
+
+        // 2) Buscamos el cliente origen real
+        $q2 = "SELECT id, nombrecliente, Direccion 
+           FROM Clientes 
+           WHERE id = '" . $nde . "'";
+        $r2 = parent::obtenerDatos($q2);
+
+        if (!$r2 || empty($r2[0]['id'])) {
+            return null;
+        }
+
+        // Devolvemos UNA sola fila
+        return $r2[0];
     }
 
     public function date_send($codigopostal)
@@ -371,13 +417,4 @@ class Rates extends conexion
         $query = "SELECT DiaSalida,Localidad, Cp AS Codigo FROM Localidades WHERE Cp = '" . $Localidad . "'";
         return parent::obtenerDatos($query);
     }
-
-    // Ya no lo usamos para cotizar, pero lo dejo por si lo reutilizás en otro lado
-    // private function buscarToken()
-    // {
-    //     $q = "SELECT TokenId,UsuarioId,Estado FROM usuarios_token
-    //       WHERE Token = '" . $this->token . "' AND Estado = 'Activo'";
-    //     $resp = parent::obtenerDatos($q);
-    //     return $resp ? $resp : 0;
-    // }
 }
