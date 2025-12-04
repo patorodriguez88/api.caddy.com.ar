@@ -72,9 +72,9 @@ if ($method === 'GET') {
         $estado = isset($_GET['estado']) ? $_GET['estado'] : '0'; // Ej: 0 = no entregado, 1 = entregado
 
         $datosArray = $_servicios->listaServicios($pagina, $idClienteOrigen, $estado);
-    } elseif (isset($_GET['id'])) {
+    } elseif (isset($_GET['codigo'])) {
 
-        $codigoSeguimiento = $_GET['id'];
+        $codigoSeguimiento = $_GET['codigo'];
         $datosArray        = $_servicios->obtenerSeguimiento($codigoSeguimiento, $idClienteOrigen);
     } elseif (isset($_GET['idProveedor'])) {
 
