@@ -1,0 +1,3 @@
+<FilesMatch "\.ya?ml$">
+  Require all granted
+</FilesMatch>
