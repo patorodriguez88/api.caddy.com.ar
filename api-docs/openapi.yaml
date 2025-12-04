@@ -1,420 +1,665 @@
 openapi: 3.0.3
 info:
-  title: API Caddy
-  description: Documentación de la API de Caddy para autenticación, servicios y tarifas.
-  version: "1.0.0"
+  title: Caddy API - Sandbox
+  version: 1.0.0
+  description: |
+    API pública de Caddy para cotización de envíos, creación de servicios y consulta de seguimientos.
+
+    - Todas las respuestas son JSON.
+    - Autenticación mediante **token** emitido por `/auth`.
+    - En sandbox la base URL es: `https://api.caddy.com.ar/sandbox`.
 
 servers:
-  - url: https://www.caddy.com.ar/sandbox/api
+  - url: https://api.caddy.com.ar/sandbox
     description: Sandbox
-  - url: https://www.caddy.com.ar/api
-    description: Producción
 
-tags:
-  - name: Autenticación
-    description: Login y manejo de tokens
-  - name: Servicios
-    description: Operaciones relacionadas a la gestión de servicios (listado, consulta y creación)
-  - name: Tarifas
-    description: Cotización de tarifas (consulta por GET, sin modificar recursos)
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: UUID
+      description: |
+        Autenticación por header estándar:
+
+        `Authorization: Bearer {token}`
+
+    XApiToken:
+      type: apiKey
+      in: header
+      name: X-Api-Token
+      description: |
+        Alternativa al Authorization:
+
+        `X-Api-Token: Bearer {token}`
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        result:
+          description: Cuerpo de la respuesta (puede ser objeto o array)
+    ErrorResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            result:
+              type: object
+              properties:
+                error_id:
+                  type: string
+                error_msg:
+                  type: string
+          example:
+            status: error
+            result:
+              error_id: "401"
+              error_msg: "El token enviado es inválido o ha caducado"
+
+    CotizacionResult:
+      type: object
+      properties:
+        Id:
+          type: integer
+          description: Id de la cotización registrada en `Cotizaciones`
+        Servicio:
+          type: string
+          example: Retiro y Entrega
+        Fecha_Entrega:
+          type: string
+          example: Viernes
+        Localidad:
+          type: string
+          example: Cordoba Capital
+        Distancia:
+          type: string
+          example: Hasta 50 km.
+        Cantidad:
+          type: integer
+        Valor_Declarado:
+          type: number
+        Titulo:
+          type: string
+          example: CADDY. TARIFA FLEX
+        Tarifa:
+          type: number
+          example: 6538
+        Seguro:
+          type: number
+        Total:
+          type: number
+        Codigo:
+          type: string
+          example: TARIFA FLEX
+
+    CrearServicioRequest:
+      type: object
+      required:
+        - NombreCompleto
+        - Direccion
+        - CodigoPostal
+        - Box
+      properties:
+        token:
+          type: string
+          description: |
+            Opcional si ya se envía en el header Authorization/X-Api-Token.
+        NombreCompleto:
+          type: string
+          example: Juan Pérez
+        Direccion:
+          type: string
+          example: Av. Colón 1234
+        Ciudad:
+          type: string
+          example: Cordoba
+        CodigoPostal:
+          type: string
+          example: "5000"
+        Dni:
+          type: string
+          example: "30123456"
+        Telefono:
+          type: string
+          example: "3515551234"
+        Mail:
+          type: string
+          example: "cliente@ejemplo.com"
+        Cobranza:
+          type: number
+          example: 15000
+        Servicio:
+          type: integer
+          description: 1 = normal, 3 = FLEX
+          example: 1
+        ValorDeclarado:
+          type: number
+          example: 20000
+        Cantidad:
+          type: integer
+          example: 1
+        EnviarMail:
+          type: boolean
+          example: true
+        WebHook:
+          type: string
+          example: "https://tienda.com/webhooks/caddy"
+        Origen:
+          type: array
+          description: |
+            Datos del origen cuando se usa un proveedor externo.
+            Si no se envía `idProveedor`, se usa el cliente asociado al token.
+          items:
+            type: object
+            properties:
+              idProveedor:
+                type: string
+                example: "ML-12345"
+              Nombre:
+                type: string
+                example: "Tienda MercadoLibre"
+              Direccion:
+                type: string
+                example: "Av. Siempreviva 742"
+        Box:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [Length, Width, Height, Weight]
+            properties:
+              Length:
+                type: number
+                example: 30
+              Width:
+                type: number
+                example: 20
+              Height:
+                type: number
+                example: 15
+              Weight:
+                type: number
+                example: 2.5
+
+    CrearServicioResult:
+      type: object
+      properties:
+        Id_de_Venta:
+          type: integer
+        Codigo_Seguimiento:
+          type: string
+          example: N7SHCK1JY
+        Observaciones:
+          type: string
+        Fecha_Entrega:
+          type: string
+          example: 2025-12-05
+        Localidad:
+          type: string
+        Cantidad:
+          type: integer
+        Titulo:
+          type: string
+        Tarifa:
+          type: number
+        Total:
+          type: number
+        Origen:
+          type: object
+          properties:
+            Nombre:
+              type: string
+            idClienteOrigen:
+              type: integer
+            Direccion:
+              type: string
+            Ciudad:
+              type: string
+            Pais:
+              type: string
+        Destino:
+          type: object
+          properties:
+            Nombre:
+              type: string
+            Direccion:
+              type: string
+            Ciudad:
+              type: string
+            CodigoPostal:
+              type: string
+            Telefono:
+              type: string
+            Mail:
+              type: string
+            Cantidad:
+              type: integer
+        Box:
+          type: object
+          properties:
+            Length: { type: number }
+            Width: { type: number }
+            Height: { type: number }
+            Weight: { type: number }
+        Cobranza:
+          type: number
+        Servicio:
+          type: integer
+        ValorDeclarado:
+          type: number
+        EnviarMail:
+          type: boolean
+
+    SeguimientoItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        Fecha:
+          type: string
+          example: "2025-12-04"
+        Hora:
+          type: string
+          example: "10:35:00"
+        Usuario:
+          type: string
+          example: "OPERADOR"
+        CodigoSeguimiento:
+          type: string
+        Observaciones:
+          type: string
+        Estado:
+          type: string
+          example: "En reparto"
+        NombreCompleto:
+          type: string
+        Dni:
+          type: string
+        Destino:
+          type: string
+
+    ListaServiciosItem:
+      type: object
+      properties:
+        Fecha:
+          type: string
+          example: "2025-12-04"
+        CodigoSeguimiento:
+          type: string
+          example: "N7SHCK1JY"
+        NumeroComprobante:
+          type: string
+        RazonSocial:
+          type: string
+        ClienteDestino:
+          type: string
+        DomicilioDestino:
+          type: string
+        Estado:
+          type: string
+          description: Estado logístico actual (texto)
+        idProveedor:
+          type: string
+          description: Código proveedor externo (ej. id de tienda)
 
 paths:
   /auth:
     post:
-      tags: [Autenticación]
-      summary: Login de usuario
-      description: Devuelve un token de autenticación válido para usar en los demás endpoints.
+      summary: Obtener token de autenticación
+      description: |
+        Devuelve un token para usar en los demás endpoints.
+
+        El token se debe enviar luego en:
+        - `Authorization: Bearer {token}` **o**
+        - `X-Api-Token: Bearer {token}` **o**
+        - como parámetro `token` (solo compatibilidad).
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [usuario, password]
               properties:
                 usuario:
                   type: string
-                  example: mcisterna
+                  example: api_user
                 password:
                   type: string
-                  example: 123456
+                  format: password
+                  example: "********"
       responses:
         "200":
-          description: Token generado correctamente
+          description: Token emitido correctamente
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  token:
-                    type: string
-                    example: 628bdb405bf8ed31b1af72f999d10e75
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                status: ok
+                result:
+                  token: "33b3b72acb4219b5b5bcb894c9c5f87c"
+                  expiracion: "2025-12-31T23:59:59-03:00"
         "401":
-          description: Usuario o contraseña inválidos
+          description: Credenciales inválidas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rates:
+    get:
+      summary: Cotizar un envío
+      description: |
+        Devuelve la tarifa estimada según código postal, dimensiones y peso.
+
+        Requiere token (Authorization / X-Api-Token / `token`).
+      security:
+        - BearerAuth: []
+        - XApiToken: []
+      parameters:
+        - in: query
+          name: cp
+          schema:
+            type: string
+          required: true
+          description: Código postal de destino (ej. 5000)
+        - in: query
+          name: length
+          schema:
+            type: number
+          required: true
+        - in: query
+          name: width
+          schema:
+            type: number
+          required: true
+        - in: query
+          name: height
+          schema:
+            type: number
+          required: true
+        - in: query
+          name: weight
+          schema:
+            type: number
+          required: true
+        - in: query
+          name: localidad
+          schema:
+            type: string
+          required: false
+        - in: query
+          name: servicio
+          schema:
+            type: integer
+            default: 1
+            description: 1 = normal, 3 = FLEX
+        - in: query
+          name: cantidad
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: valorDeclarado
+          schema:
+            type: number
+            default: 0
+        - in: query
+          name: flex
+          schema:
+            type: integer
+            default: 0
+            description: 1 fuerza tratamiento FLEX
+        - in: query
+          name: token
+          schema:
+            type: string
+          required: false
+          description: Alternativa si no se envía en el header.
+      responses:
+        "200":
+          description: Cotización generada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                status: ok
+                result:
+                  Id: 1234
+                  Servicio: "Retiro y Entrega"
+                  Fecha_Entrega: "Viernes"
+                  Localidad: "Cordoba Capital"
+                  Distancia: "Hasta 50 km."
+                  Cantidad: 1
+                  Valor_Declarado: 10000
+                  Titulo: "CADDY. TARIFA FLEX"
+                  Tarifa: 6538
+                  Seguro: 0
+                  Total: 6538
+                  Codigo: "183"
+        "400":
+          description: Error en parámetros o en obtención de precio
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token faltante o inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /servicios:
     get:
-      tags: [Servicios]
-      summary: Listado de servicios
-      description: Devuelve los servicios disponibles con filtros de estado y paginación.
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-          example: 1
-        - name: token
-          in: query
-          schema:
-            type: string
-          required: true
-        - name: estado
-          in: query
-          schema:
-            type: integer
-            enum: [0, 1]
-          description: Estado de los servicios
-      responses:
-        "200":
-          description: Lista de servicios
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id: { type: string }
-                    nombre: { type: string }
-                    estado: { type: string }
-
-  /servicios/{codigo}:
-    get:
-      tags: [Servicios]
-      summary: Consulta servicio por Código de Seguimiento
-      description: Devuelve la información de un servicio específico.
-      parameters:
-        - name: codigo
-          in: path
-          required: true
-          schema:
-            type: string
-            example: INPRAZOKW
-        - name: token
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Información del servicio
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  id: { type: string }
-                  codigo: { type: string }
-                  estado: { type: string }
-        "404":
-          description: Servicio no encontrado
-
-  /sandbox/api/servicios:
-    post:
-      tags: [Servicios]
-      summary: Crear un servicio
+      summary: Listar servicios o consultar seguimiento
       description: |
-        Permite registrar un nuevo servicio.
-        Requiere un `token` válido obtenido desde el endpoint de login.
+        - `?page={n}` → lista de servicios del cliente.
+        - `?id={CodigoSeguimiento}` → detalle de seguimiento.
+        - `?idProveedor={codigo}` → seguimiento a partir del id de proveedor.
+
+        Siempre se filtra por el cliente asociado al token y sus clientes relacionados (`Relacion`, `AdminEnvios`).
+      security:
+        - BearerAuth: []
+        - XApiToken: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+          required: false
+          description: Página de resultados (lista de servicios).
+        - in: query
+          name: estado
+          schema:
+            type: string
+            example: "0"
+          required: false
+          description: |
+            Solo para `page`: estado logístico (ej. 0 = no entregado, 1 = entregado).
+        - in: query
+          name: id
+          schema:
+            type: string
+          required: false
+          description: Código de seguimiento (para ver movimientos).
+        - in: query
+          name: idProveedor
+          schema:
+            type: string
+          required: false
+          description: Código de proveedor externo (ej. id de tienda).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+              examples:
+                ListaServicios:
+                  summary: Lista de servicios (page)
+                  value:
+                    status: ok
+                    result:
+                      - Fecha: "2025-12-04"
+                        CodigoSeguimiento: "N7SHCK1JY"
+                        NumeroComprobante: "0001-00001234"
+                        RazonSocial: "CLIENTE ORIGEN SA"
+                        ClienteDestino: "Juan Pérez"
+                        DomicilioDestino: "Av. Colón 1234"
+                        Estado: "En proceso de distribución"
+                        idProveedor: "ML-12345"
+                SeguimientoPorCodigo:
+                  summary: Seguimiento por CódigoSeguimiento
+                  value:
+                    status: ok
+                    result:
+                      - id: 1
+                        Fecha: "2025-12-04"
+                        Hora: "10:00:00"
+                        Usuario: "OPERADOR"
+                        CodigoSeguimiento: "N7SHCK1JY"
+                        Observaciones: "En proceso de distribución"
+                        Estado: "PROCESO DE DISTRIBUCION"
+                        NombreCompleto: "Juan Pérez"
+                        Dni: "30123456"
+                        Destino: "Av. Colón 1234 - Cordoba"
+                SeguimientoPendiente:
+                  summary: Venta aún no cargada a Seguimiento (PreVenta)
+                  value:
+                    status: ok
+                    result:
+                      - id: 999
+                        Fecha: "2025-12-04"
+                        Hora: "09:30:00"
+                        Usuario: "API"
+                        CodigoSeguimiento: "N7SHCK1JY"
+                        Observaciones: "La venta aun no fue cargada al sistema de seguimiento"
+                        Estado: "Pendiente"
+                        NombreCompleto: "Juan Pérez"
+                        Dni: ""
+                        Destino: "Av. Colón 1234 - Cordoba"
+        "204":
+          description: No se encontraron datos para el criterio indicado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                result:
+                  error_id: "204"
+                  error_msg: "Seguimiento no encontrado"
+        "401":
+          description: Token faltante o inválido / cliente sin NdeCliente asociado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Crear un nuevo servicio (envío)
+      description: |
+        Crea una venta en `PreVenta`, genera un `CodigoSeguimiento` y opcionalmente
+        envía un mail al destinatario.
+
+        Requiere token válido asociado a un usuario que tenga `NdeCliente` configurado.
+      security:
+        - BearerAuth: []
+        - XApiToken: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                NombreCompleto: { type: string }
-                Direccion: { type: string }
-                Ciudad: { type: string }
-                CodigoPostal: { type: string }
-                token: { type: string }
-                Dni: { type: string }
-                Mail: { type: string }
-                Telefono: { type: string }
-                Cantidad: { type: integer }
-                Servicio: { type: integer }
-                ValorDeclarado: { type: string }
-                Cobranza: { type: string }
-                idProveedor: { type: string }
-                Observaciones: { type: string }
-                Origen:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      idProveedor: { type: string }
-                      Nombre: { type: string }
-                      Direccion: { type: string }
-                Box:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      Length: { type: string }
-                      Width: { type: string }
-                      Height: { type: string }
-                      Weight: { type: string }
-              example:
-                NombreCompleto: "Elsa Fig"
-                Direccion: "MI CASA"
-                Ciudad: "TURRADO JUAREZ 1377"
-                CodigoPostal: "5000"
-                token: "628bdb405bf8ed31b1af72f999d10e75"
-                Dni: "223334434"
-                Mail: "prodriguez@caddy.com.ar"
-                Telefono: "0351152462825"
-                Cantidad: 1
-                Servicio: 3
-                ValorDeclarado: "10000"
-                Cobranza: "107690"
-                idProveedor: "I2757268"
-                Observaciones: "ELSA VIVE EN UNA CASA COLOR GRIS..."
-                Origen:
-                  - idProveedor: ""
-                    Nombre: ""
-                    Direccion: ""
-                Box:
-                  - Length: "10"
-                    Width: "10"
-                    Height: "10"
-                    Weight: "10"
+              $ref: "#/components/schemas/CrearServicioRequest"
+            example:
+              NombreCompleto: "Juan Pérez"
+              Direccion: "Av. Colón 1234"
+              Ciudad: "Cordoba"
+              CodigoPostal: "5000"
+              Dni: "30123456"
+              Telefono: "3515551234"
+              Mail: "cliente@ejemplo.com"
+              Cobranza: 15000
+              Servicio: 1
+              ValorDeclarado: 20000
+              Cantidad: 1
+              EnviarMail: true
+              WebHook: "https://tienda.com/webhooks/caddy"
+              Origen:
+                - idProveedor: "ML-12345"
+                  Nombre: "Tienda MercadoLibre"
+                  Direccion: "Av. Siempreviva 742"
+              Box:
+                - Length: 30
+                  Width: 20
+                  Height: 15
+                  Weight: 2.5
       responses:
         "200":
           description: Servicio creado correctamente
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  id: { type: integer, example: 12345 }
-                  codigoSeguimiento: { type: string, example: "INPRAZOKW" }
-                  estado: { type: string, example: "Cargada" }
-      x-codeSamples:
-        - lang: cURL
-          label: cURL Example
-          source: |
-            curl --location 'https://www.caddy.com.ar/sandbox/api/servicios' \
-            --header 'Content-Type: application/json' \
-            --data-raw '{
-              "NombreCompleto" : "Elsa Fig",
-              "Direccion" : "MI CASA",
-              "Ciudad" : "TURRADO JUAREZ 1377",
-              "CodigoPostal": "5000",
-              "token" : "628bdb405bf8ed31b1af72f999d10e75",
-              "Dni" : "223334434",
-              "Mail":"prodriguez@caddy.com.ar",
-              "Telefono" : "0351152462825",
-              "Cantidad" : 1,
-              "Servicio" : 3,
-              "ValorDeclarado" : "10000",
-              "Cobranza" : "107690",
-              "idProveedor" : "I2757268",
-              "Observaciones" : "ELSA VIVE EN UNA CASA COLOR GRIS...",
-              "Origen" : [
-                { "idProveedor": "", "Nombre": "", "Direccion": "" }
-              ],
-              "Box" : [
-                { "Length" : "10", "Width" : "10", "Height" : "10", "Weight" : "10" }
-              ]
-            }'
-        - lang: Java
-          label: Java OkHttp
-          source: |
-            OkHttpClient client = new OkHttpClient().newBuilder()
-              .build();
-            MediaType mediaType = MediaType.parse("application/json");
-            RequestBody body = RequestBody.create(mediaType, "{\n\"NombreCompleto\" : \"Elsa Fig\", ... }");
-            Request request = new Request.Builder()
-              .url("https://www.caddy.com.ar/sandbox/api/servicios")
-              .method("POST", body)
-              .addHeader("Content-Type", "application/json")
-              .build();
-            Response response = client.newCall(request).execute();
-
-  /tarifas/cotizar:
-    get:
-      tags: [Tarifas]
-      summary: Cotización de tarifa (GET)
-      description: >
-        Calcula la tarifa en base al código postal de destino, dimensiones, peso y servicio.
-        No modifica recursos (solo lectura). Requiere `token` válido.
-      parameters:
-        - name: token
-          in: query
-          required: true
-          description: Token de sesión del cliente (usuarios_token.Activo)
-          schema:
-            type: string
-            example: 628bdb405bf8ed31b1af72f999d10e75
-        - name: cp
-          in: query
-          required: true
-          description: Código Postal de destino (alias CodigoPostal). Capital (5000–5023) se normaliza a 5000.
-          schema:
-            type: string
-            example: "5014"
-        - name: length
-          in: query
-          required: true
-          schema: { type: number, format: float, example: 0.40 }
-        - name: width
-          in: query
-          required: true
-          schema: { type: number, format: float, example: 0.30 }
-        - name: height
-          in: query
-          required: true
-          schema: { type: number, format: float, example: 0.20 }
-        - name: weight
-          in: query
-          required: true
-          schema: { type: number, format: float, example: 2.5 }
-        - name: localidad
-          in: query
-          description: Nombre de la localidad de destino (para label en respuesta)
-          schema: { type: string, example: "Villa Allende" }
-        - name: servicio
-          in: query
-          description: Tipo de servicio (1=Retiro y Entrega, 3=Flex)
-          schema: { type: integer, enum: [1, 3], default: 1, example: 1 }
-        - name: cantidad
-          in: query
-          description: Cantidad de bultos (default 1)
-          schema: { type: integer, minimum: 1, default: 1, example: 1 }
-        - name: valorDeclarado
-          in: query
-          description: Valor declarado (se aplica seguro mínimo configurable)
-          schema: { type: number, format: float, default: 0, example: 10000 }
-        - name: flex
-          in: query
-          description: Forzar cálculo como Flex (0/1). Si =1 o servicio=3 y CP es Capital, usa tarifa FLEX.
-          schema: { type: integer, enum: [0, 1], default: 0, example: 0 }
-      responses:
-        "200":
-          description: Cotización calculada correctamente
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  result:
-                    type: object
-                    properties:
-                      Id: { type: integer, example: 12345 }
-                      Servicio: { type: string, example: "Retiro y Entrega" }
-                      Fecha_Entrega: { type: string, example: "Viernes" }
-                      Localidad: { type: string, example: "Villa Allende" }
-                      Distancia: { type: string, example: "Hasta 12 km." }
-                      Cantidad: { type: integer, example: 1 }
-                      Valor_Declarado: { type: number, example: 10000 }
-                      Titulo: { type: string, example: "Zona Norte - Web" }
-                      Tarifa: { type: integer, example: 1850 }
-                      Seguro: { type: number, example: 120 }
-                      Total: { type: integer, example: 1970 }
-                      Codigo: { type: string, example: "ZN-12" }
-              examples:
-                ejemploInterior:
-                  summary: No Flex / Interior
-                  value:
-                    result:
-                      Id: 98765
-                      Servicio: "Retiro y Entrega"
-                      Fecha_Entrega: "Jueves"
-                      Localidad: "Villa Allende"
-                      Distancia: "Hasta 12 km."
-                      Cantidad: 1
-                      Valor_Declarado: 10000
-                      Titulo: "Zona Norte - Web"
-                      Tarifa: 1850
-                      Seguro: 120
-                      Total: 1970
-                      Codigo: "ZN-12"
-                ejemploFlexCapital:
-                  summary: Flex en Capital
-                  value:
-                    result:
-                      Id: 12346
-                      Servicio: "Retiro y Entrega"
-                      Fecha_Entrega: "Hoy"
-                      Localidad: "Cordoba Capital"
-                      Distancia: "Hasta 10 km."
-                      Cantidad: 1
-                      Valor_Declarado: 5000
-                      Titulo: "Flex - Capital"
-                      Tarifa: 1200
-                      Seguro: 0
-                      Total: 1200
-                      Codigo: "183"
+                $ref: "#/components/schemas/ApiResponse"
+              example:
+                status: ok
+                result:
+                  Id_de_Venta: 12345
+                  Codigo_Seguimiento: "N7SHCK1JY"
+                  Observaciones: ""
+                  Fecha_Entrega: "2025-12-05"
+                  Localidad: "Cordoba"
+                  Cantidad: 1
+                  Titulo: "CADDY SIMPLE"
+                  Tarifa: 6538
+                  Total: 6538
+                  Origen:
+                    Nombre: "CLIENTE ORIGEN SA"
+                    idClienteOrigen: 10
+                    Direccion: "Ruta 9 km 123"
+                    Ciudad: "Cordoba"
+                    Pais: "Argentina"
+                  Destino:
+                    Nombre: "Juan Pérez"
+                    Direccion: "Av. Colón 1234"
+                    Ciudad: "Cordoba"
+                    CodigoPostal: "5000"
+                    Telefono: "3515551234"
+                    Mail: "cliente@ejemplo.com"
+                    Cantidad: 1
+                  Box:
+                    Length: 30
+                    Width: 20
+                    Height: 15
+                    Weight: 2.5
+                  Cobranza: 15000
+                  Servicio: 1
+                  ValorDeclarado: 20000
+                  EnviarMail: true
         "400":
-          description: Parámetros inválidos o no se pudo obtener precio
+          description: Error de validación o datos incompletos
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  result:
-                    type: object
-                    properties:
-                      error_id: { type: integer, example: 400 }
-                      error_msg:
-                        { type: string, example: "Faltan datos del paquete" }
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
-          description: Token inválido o expirado
+          description: Token inválido, sin token o sin NdeCliente asociado al usuario
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  result:
-                    type: object
-                    properties:
-                      error_id: { type: integer, example: 401 }
-                      error_msg:
-                        {
-                          type: string,
-                          example: "El Token que envió es inválido o ha caducado",
-                        }
-      x-codeSamples:
-        - lang: cURL
-          label: cURL (Interior)
-          source: |
-            curl --get 'https://www.caddy.com.ar/sandbox/api/tarifas/cotizar' \
-              --data-urlencode 'token=628bdb405bf8ed31b1af72f999d10e75' \
-              --data-urlencode 'cp=5014' \
-              --data-urlencode 'length=0.4' \
-              --data-urlencode 'width=0.3' \
-              --data-urlencode 'height=0.2' \
-              --data-urlencode 'weight=2.5' \
-              --data-urlencode 'localidad=Villa Allende' \
-              --data-urlencode 'servicio=1' \
-              --data-urlencode 'cantidad=1' \
-              --data-urlencode 'valorDeclarado=10000'
-        - lang: cURL
-          label: cURL (Flex Capital)
-          source: |
-            curl --get 'https://www.caddy.com.ar/sandbox/api/tarifas/cotizar' \
-              --data-urlencode 'token=628bdb405bf8ed31b1af72f999d10e75' \
-              --data-urlencode 'cp=5004' \
-              --data-urlencode 'length=0.3' \
-              --data-urlencode 'width=0.3' \
-              --data-urlencode 'height=0.3' \
-              --data-urlencode 'weight=1' \
-              --data-urlencode 'localidad=Cordoba' \
-              --data-urlencode 'servicio=3' \
-              --data-urlencode 'flex=1'
-
-components:
-  securitySchemes:
-    ApiKeyQuery:
-      type: apiKey
-      in: query
-      name: token
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Error interno al insertar la venta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
