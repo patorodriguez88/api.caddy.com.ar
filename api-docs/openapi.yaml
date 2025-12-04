@@ -8,7 +8,7 @@ info:
 
     **Autenticación**
 
-    - Primero obtené un token usando `POST /auth/token`.
+    - Primero obtené un token usando `POST /auth`.
     - Luego enviá ese token en el header:
 
       `X-Api-Token: Bearer {tu_token}`
@@ -25,7 +25,7 @@ info:
       date: 2025-12-04
       changes:
         - Segunda versión pública de la API Caddy.
-        - Endpoint de autenticación `POST /auth/token` para generar tokens.
+        - Endpoint de autenticación `POST /auth` para generar tokens.
         - Endpoint `POST /servicios` para crear nuevos envíos.
         - Endpoint `GET /servicios` para listar envíos del cliente.
         - Endpoint `GET /servicios?codigo=...` para ver el seguimiento por código.
@@ -51,7 +51,7 @@ tags:
     description: Descarga de etiquetas de envíos.
 
 paths:
-  /auth/token:
+  /auth:
     post:
       tags:
         - Auth
