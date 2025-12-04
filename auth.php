@@ -1,10 +1,8 @@
 <?php
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
-// 1) PRIMERO: conexión
-require_once __DIR__ . '/conexion/conexion.php';
+ini_set('display_errors', 0);
 
-// 2) LUEGO: clases de lógica
+require_once __DIR__ . '/conexion/conexion.php';
 require_once 'clases/auth.class.php';
 require_once 'clases/respuestas.class.php';
 
