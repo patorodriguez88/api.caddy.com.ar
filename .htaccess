@@ -28,7 +28,7 @@ RewriteRule ^ - [R=204,L]
 </FilesMatch>
 
 <IfModule mod_headers.c>
-  Header always set Access-Control-Allow-Origin "https://caddy.com.ar"
+  Header always set Access-Control-Allow-Origin "https://api.caddy.com.ar"
   Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
   Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Api-Token"
   Header always set Access-Control-Max-Age "86400"
