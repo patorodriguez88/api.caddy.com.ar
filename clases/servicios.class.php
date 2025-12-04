@@ -70,175 +70,162 @@ class servicios extends conexion
         }
     }
 
-    public function listaServicios($pagina, $token, $estado)
+    public function listaServicios($pagina, $idClienteOrigen, $estado)
     {
-        $inicio  = 0;
+        $inicio   = 0;
         $cantidad = 100;
+
         if ($pagina > 1) {
             $inicio = ($cantidad * ($pagina - 1)) + 1;
         }
-        $_respuestas = new respuestas;
-        // $datos = json_decode($json,true);
 
-        if (!isset($token)) {
-            return $_respuestas->error_401('50');
-        } else {
-            $this->token = $token;
-            $arrayToken = $this->buscarToken();
-            if ($arrayToken) {
-                $this->pato = $arrayToken[0]['UsuarioId'];
-                $idUsuario = $this->pato;
-                $ClienteOrigen = $this->clienteOrigen($idUsuario);
-                $idClienteOrigen = $ClienteOrigen[0]['id'];
+        $_respuestas     = new respuestas;
+        $idClienteOrigen = (int)$idClienteOrigen;
 
-                $sqlRelaciones = "SELECT id FROM Clientes WHERE Relacion='$idClienteOrigen' AND AdminEnvios='1'";
-                $resp = parent::obtenerDatosLimpios($sqlRelaciones);
+        if ($idClienteOrigen <= 0) {
+            // Si el controlador no pudo obtener NdeCliente desde el token
+            return $_respuestas->error_401('Cliente no asociado al token');
+        }
 
-                if ($resp) {
-                    $resp1 = join(",", $resp);
+        // Busco clientes relacionados que este cliente puede administrar
+        $sqlRelaciones = "SELECT id FROM Clientes WHERE Relacion='$idClienteOrigen' AND AdminEnvios='1'";
+        $resp          = parent::obtenerDatosLimpios($sqlRelaciones);
 
-                    $query = "SELECT Fecha,CodigoSeguimiento,NumeroComprobante,RazonSocial,ClienteDestino,DomicilioDestino,Estado,CodigoProveedor as idProveedor
-              FROM " . $this->tableTrans . " WHERE IngBrutosOrigen IN($idClienteOrigen,$resp1) AND Entregado = '$estado' AND Eliminado='0' AND Haber='0' ORDER BY Fecha DESC limit $inicio,$cantidad";
-                    $datos = parent::obtenerDatos($query);
+        $idsPermitidos = [$idClienteOrigen];
 
-                    return $datos;
+        if ($resp) {
+            // obtenerDatosLimpios puede devolver un array de ids o un array de filas; contemplamos ambos casos
+            foreach ($resp as $row) {
+                if (is_array($row) && isset($row['id'])) {
+                    $idsPermitidos[] = $row['id'];
                 } else {
-
-                    return $_respuestas->error_500("Error 500");
+                    $idsPermitidos[] = $row;
                 }
-            } else {
-                return $_respuestas->error_401("El Token que envio es invalido o ha caducado");
             }
         }
+
+        if (empty($idsPermitidos)) {
+            return $_respuestas->error_500("Error 500");
+        }
+
+        $listaIds = implode(',', array_map('intval', $idsPermitidos));
+
+        $query = "SELECT Fecha,CodigoSeguimiento,NumeroComprobante,RazonSocial,ClienteDestino,DomicilioDestino,Estado,CodigoProveedor as idProveedor
+                  FROM " . $this->tableTrans . "
+                  WHERE IngBrutosOrigen IN($listaIds)
+                    AND Entregado = '" . $estado . "'
+                    AND Eliminado='0'
+                    AND Haber='0'
+                  ORDER BY Fecha DESC
+                  LIMIT $inicio,$cantidad";
+
+        $datos = parent::obtenerDatos($query);
+
+        return $datos;
     }
 
-    public function obtenerSeguimiento($id, $token)
+    public function obtenerSeguimiento($id, $idClienteOrigen)
     {
-        $_respuestas = new respuestas;
-        // $datos = json_decode($json,true);
+        $_respuestas     = new respuestas;
+        $idClienteOrigen = (int)$idClienteOrigen;
 
-        if (!isset($token)) {
-            return $_respuestas->error_401('89');
-        } else {
-            $this->token = $token;
-            $arrayToken =   $this->buscarToken();
-            if ($arrayToken) {
-                $this->pato = $arrayToken[0]['UsuarioId'];
-                $idUsuario = $this->pato;
-                $ClienteOrigen = $this->clienteOrigen($idUsuario);
+        if ($idClienteOrigen <= 0) {
+            return $_respuestas->error_401('Cliente no asociado al token');
+        }
 
-                if (empty($ClienteOrigen) || !isset($ClienteOrigen[0])) {
-                    // según tu lógica:
-                    // 1) devolver un error:
-                    return $_respuestas->error_204('No se encontraron datos en Cliente Origen');
-                    // o 2) devolver un array vacío:
-                    // return [];
-                }
+        // Busco el cliente origen real del envío
+        $query = "SELECT IngBrutosOrigen FROM " . $this->tableTrans . " WHERE CodigoSeguimiento = '" . $id . "'";
+        $datos = parent::obtenerDatos($query);
 
-                $idClienteOrigen = $ClienteOrigen[0]['id'];
+        if (!$datos || !isset($datos[0]['IngBrutosOrigen'])) {
+            return $_respuestas->error_204('No se encontraron datos del envío');
+        }
 
-                //BUSCO ID CLIENTE ORIGEN
-                $query = "SELECT IngBrutosOrigen FROM " . $this->tableTrans . " WHERE CodigoSeguimiento = '$id'";
-                $datos = parent::obtenerDatos($query);
-                $id2 = $datos[0]['IngBrutosOrigen'];
+        $id2 = (int)$datos[0]['IngBrutosOrigen'];
 
-                //SI EL CLIENTE A BUSCAR ES EL ID DEL TOKEN
-                if ($id2 <> $idClienteOrigen) {
-                    //BUSCO SI EL CLIENTE TIENE RELACION ADMIN CON EL CLIENTE  
-                    $query = "SELECT Relacion,AdminEnvios FROM " . $this->tableClientes . " WHERE id = '$id2'";
-                    $datos = parent::obtenerDatos($query);
+        // Si el envío pertenece a otro cliente, verifico relación / permisos
+        if ($id2 !== $idClienteOrigen) {
+            $query = "SELECT Relacion,AdminEnvios FROM " . $this->tableClientes . " WHERE id = '" . $id2 . "'";
+            $datos = parent::obtenerDatos($query);
 
-                    if (($datos[0]['Relacion'] == $idClienteOrigen) || ($datos[0]['AdminEnvios'] == 1)) {
-                        $query = "SELECT id,Fecha,Hora,Usuario,CodigoSeguimiento,Observaciones,Estado,NombreCompleto,Dni,Destino 
-                FROM " . $this->table . " WHERE CodigoSeguimiento = '$id'";
-
-                        $datos = parent::obtenerDatos($query);
-                        return $datos;
-                    } else {
-                        return $_respuestas->error_204();
-                    }
-                } else {
-                    $query = "SELECT id,Fecha,Hora,Usuario,CodigoSeguimiento,Observaciones,Estado,NombreCompleto,Dni,Destino 
-              FROM " . $this->table . " WHERE CodigoSeguimiento = '$id'";
-
-                    $datos = parent::obtenerDatos($query);
-
-                    if ($datos) {
-                        return $datos;
-                    } else {
-                        return $_respuestas->error_204();
-                    }
-                }
-            } else {
-                return $_respuestas->error_401("El Token que envio es invalido o ha caducado");
+            if (
+                !$datos ||
+                (
+                    (int)$datos[0]['Relacion'] !== $idClienteOrigen &&
+                    (int)$datos[0]['AdminEnvios'] !== 1
+                )
+            ) {
+                return $_respuestas->error_204();
             }
         }
+
+        // Si llegamos acá, el cliente está autorizado a ver el seguimiento
+        $query = "SELECT id,Fecha,Hora,Usuario,CodigoSeguimiento,Observaciones,Estado,NombreCompleto,Dni,Destino 
+                  FROM " . $this->table . " 
+                  WHERE CodigoSeguimiento = '" . $id . "'";
+
+        $datos = parent::obtenerDatos($query);
+
+        if ($datos) {
+            return $datos;
+        }
+
+        return $_respuestas->error_204();
     }
 
-    //BUSCO EN SEGUIMIENTO DESDE EL ID DEL PROVEEDOR
-
-    public function obtenerSeguimientoProveedor($id, $token)
+    // BUSCO EN SEGUIMIENTO DESDE EL ID DEL PROVEEDOR
+    public function obtenerSeguimientoProveedor($id, $idClienteOrigen)
     {
-        $_respuestas = new respuestas;
-        // $datos = json_decode($json,true);
+        $_respuestas     = new respuestas;
+        $idClienteOrigen = (int)$idClienteOrigen;
 
-        if (!isset($token)) {
-            return $_respuestas->error_401('144');
-        } else {
-            $this->token = $token;
-            $arrayToken =   $this->buscarToken();
+        if ($idClienteOrigen <= 0) {
+            return $_respuestas->error_401('Cliente no asociado al token');
+        }
 
-            if ($arrayToken) {
-                $this->pato = $arrayToken[0]['UsuarioId'];
-                $idUsuario = $this->pato;
+        // Busco el envío por CódigoProveedor
+        $query = "SELECT IngBrutosOrigen,CodigoSeguimiento FROM " . $this->tableTrans . " WHERE CodigoProveedor = '" . $id . "'";
+        $datos = parent::obtenerDatos($query);
 
+        if (!$datos || !isset($datos[0]['IngBrutosOrigen'])) {
+            return $_respuestas->error_204('No se encontraron envíos para ese proveedor');
+        }
 
-                $ClienteOrigen = $this->clienteOrigen($idUsuario);
+        $id2   = (int)$datos[0]['IngBrutosOrigen'];
+        $id2Cs = $datos[0]['CodigoSeguimiento'];
 
-                $idClienteOrigen = $ClienteOrigen[0]['id'];
-                //BUSCO ID CLIENTE ORIGEN
-                $query = "SELECT IngBrutosOrigen,CodigoSeguimiento FROM " . $this->tableTrans . " WHERE CodigoProveedor = '$id'";
-                $datos = parent::obtenerDatos($query);
-                $id2 = $datos[0]['IngBrutosOrigen'];
-                $id2Cs = $datos[0]['CodigoSeguimiento'];
+        // Si el envío pertenece a otro cliente, verifico relación / permisos
+        if ($id2 !== $idClienteOrigen) {
+            $query = "SELECT Relacion,AdminEnvios FROM " . $this->tableClientes . " WHERE id = '" . $id2 . "'";
+            $datos = parent::obtenerDatos($query);
 
-                //SI EL CLIENTE A BUSCAR ES EL ID DEL TOKEN
-                if ($id2 <> $idClienteOrigen) {
-                    //BUSCO SI EL CLIENTE TIENE RELACION ADMIN CON EL CLIENTE  
-                    $query = "SELECT Relacion,AdminEnvios FROM " . $this->tableClientes . " WHERE id = '$id2'";
-                    $datos = parent::obtenerDatos($query);
-
-                    if (($datos[0]['Relacion'] == $idClienteOrigen) || ($datos[0]['AdminEnvios'] == 1)) {
-                        $query = "SELECT " . $this->table . ".id," . $this->table . ".Fecha," . $this->table . ".Hora," . $this->table . ".Usuario,
-              " . $this->table . ".CodigoSeguimiento," . $this->table . ".Observaciones," . $this->table . ".Estado," . $this->table . ".NombreCompleto,
-              " . $this->table . ".Dni," . $this->table . ".Destino," . $this->tableTrans . ".CodigoProveedor 
-              FROM " . $this->table . " INNER JOIN " . $this->tableTrans . " ON " . $this->table . ".CodigoSeguimiento= " . $this->tableTrans . ".CodigoSeguimiento WHERE " . $this->table . ".CodigoSeguimiento =  '$id2Cs'";
-
-                        $datos = parent::obtenerDatos($query);
-                        return $datos;
-                    } else {
-                        return $_respuestas->error_204();
-                    }
-                } else {
-                    $query = "SELECT " . $this->table . ".id," . $this->table . ".Fecha," . $this->table . ".Hora," . $this->table . ".Usuario,
-              " . $this->table . ".CodigoSeguimiento AS Seguimiento Caddy," . $this->table . ".Observaciones," . $this->table . ".Estado," . $this->table . ".NombreCompleto,
-              " . $this->table . ".Dni," . $this->table . ".Destino," . $this->tableTrans . ".CodigoProveedor 
-              FROM " . $this->table . " INNER JOIN " . $this->tableTrans . " ON " . $this->table . ".CodigoSeguimiento= " . $this->tableTrans . ".CodigoSeguimiento WHERE CodigoSeguimiento = '$id'";
-
-                    $datos = parent::obtenerDatos($query);
-
-                    if ($datos) {
-
-                        return $datos;
-                    } else {
-
-                        return $_respuestas->error_204();
-                    }
-                }
-            } else {
-                return $_respuestas->error_401("El Token que envio es invalido o ha caducado");
+            if (
+                !$datos ||
+                (
+                    (int)$datos[0]['Relacion'] !== $idClienteOrigen &&
+                    (int)$datos[0]['AdminEnvios'] !== 1
+                )
+            ) {
+                return $_respuestas->error_204();
             }
         }
+
+        // Si llegamos acá, el cliente está autorizado a ver el seguimiento
+        $query = "SELECT " . $this->table . ".id," . $this->table . ".Fecha," . $this->table . ".Hora," . $this->table . ".Usuario,
+                  " . $this->table . ".CodigoSeguimiento," . $this->table . ".Observaciones," . $this->table . ".Estado," . $this->table . ".NombreCompleto,
+                  " . $this->table . ".Dni," . $this->table . ".Destino," . $this->tableTrans . ".CodigoProveedor 
+                  FROM " . $this->table . " 
+                  INNER JOIN " . $this->tableTrans . " 
+                    ON " . $this->table . ".CodigoSeguimiento = " . $this->tableTrans . ".CodigoSeguimiento 
+                  WHERE " . $this->table . ".CodigoSeguimiento =  '" . $id2Cs . "'";
+
+        $datos = parent::obtenerDatos($query);
+
+        if ($datos) {
+            return $datos;
+        }
+
+        return $_respuestas->error_204();
     }
 
 
