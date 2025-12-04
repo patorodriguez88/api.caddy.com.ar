@@ -236,7 +236,7 @@ paths:
         - Valor declarado
         - Servicio (normal / FLEX)
 
-        Antes de llamar a este endpoint debés obtener un token con `POST /auth/token`.
+        Antes de llamar a este endpoint debés obtener un token con `POST /auth`.
       security:
         - ApiToken: []
       parameters:
