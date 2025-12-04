@@ -18,17 +18,17 @@ info:
   version: 26.12.1
   contact:
     name: Caddy Logística
-    url: https://www.caddy.com.ar
+    url: https://api.caddy.com.ar
     email: info@caddy.com.ar
   x-release-notes:
     26.12.1:
       date: 2025-12-04
       changes:
-        - Primera versión pública de la API Caddy.
+        - Segunda versión pública de la API Caddy.
         - Endpoint de autenticación `POST /auth/token` para generar tokens.
         - Endpoint `POST /servicios` para crear nuevos envíos.
         - Endpoint `GET /servicios` para listar envíos del cliente.
-        - Endpoint `GET /servicios?id=...` para ver el seguimiento por código.
+        - Endpoint `GET /servicios?codigo=...` para ver el seguimiento por código.
         - Endpoint `GET /servicios?idProveedor=...` para ver seguimiento por id de proveedor.
         - Endpoint `GET /rates` para cotizar tarifas.
         - Endpoint `GET /etiquetas` para descargar etiquetas en PDF.
@@ -37,8 +37,8 @@ servers:
   - url: https://api.caddy.com.ar/sandbox
     description: Sandbox (testing)
   # Podés agregar producción cuando lo tengas:
-  # - url: https://api.caddy.com.ar/v1
-  #   description: Producción
+  - url: https://api.caddy.com.ar/api
+    description: Producción
 
 tags:
   - name: Auth
