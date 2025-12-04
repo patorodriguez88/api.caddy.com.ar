@@ -360,9 +360,10 @@ paths:
         - Etiquetas
       summary: Descarga la etiqueta de un envío
       description: |
-        Genera y devuelve la etiqueta para un envío existente.
+        Genera y devuelve la etiqueta para un envío existente en formato PDF o ZPL, lista para imprimir.
 
-        Actualmente el formato soportado es **PDF**.
+        Ejemplo visual de una etiqueta PDF:
+        ![Ejemplo de etiqueta PDF](/images/etiqueta-ejemplo.png)
       security:
         - ApiToken: []
       parameters:
