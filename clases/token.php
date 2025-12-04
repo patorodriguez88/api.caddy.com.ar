@@ -39,8 +39,7 @@ class Token
      */
     public static function validar(string $token, $db): ?array
     {
-        $query = "
-            SELECT ut.TokenId, ut.UsuarioId, ut.Estado, u.NdeCliente
+        $query = "SELECT ut.TokenId, ut.UsuarioId, ut.Estado, u.NdeCliente
             FROM usuarios_token ut
             JOIN usuarios u ON ut.UsuarioId = u.id
             WHERE ut.Token = '$token'

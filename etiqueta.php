@@ -7,7 +7,7 @@ if (ob_get_length() === false) {
 }
 
 require_once 'conexion/conexion.php';
-require_once 'clases/Token.php';
+require_once 'clases/token.php';
 require_once 'clases/respuestas.class.php';
 require_once 'libs/fpdf182/fpdf.php';
 require_once 'libs/phpqrcode/qrlib.php';
