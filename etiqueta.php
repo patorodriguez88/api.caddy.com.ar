@@ -283,7 +283,10 @@ class EtiquetaService extends conexion
         if (!empty($tel)) {
             // $pdf->Cell(0, 4, 'Tel: ' . $tel, 0, 1, 'L');
         }
-        $pdf->Cell(0, 5, 'REFERENCIAS: ' . $this->pdfTxt($observaciones), 0, 1, 'L');
+        // $pdf->Cell(0, 5, 'REFERENCIAS: ' . $this->pdfTxt($observaciones), 0, 1, 'L');
+        $pdf->SetFont('Arial', '', 9);
+        $pdf->MultiCell(0, 4, 'REFERENCIAS: ' . $this->pdfTxt($observaciones), 0, 'L');
+        $pdf->Ln(2);
         $pdf->Ln(2);
 
         /* ========= PIE ========= */
@@ -332,7 +335,7 @@ class EtiquetaService extends conexion
         $recorrido     = ''; // si lo tenés en la BD podés mapearlo acá
 
         $textoBulto = '';
-        if ($totalBultos > 1) {
+        if ($totalBultos >= 1) {
             $textoBulto = $nroBulto . '/' . $totalBultos;
         }
 
