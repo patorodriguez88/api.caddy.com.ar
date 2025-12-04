@@ -382,7 +382,7 @@ paths:
             default: pdf
             enum:
               - pdf
-              # - zpl   # Reservado para futuro
+              - zpl
       responses:
         "200":
           description: Etiqueta generada correctamente.
