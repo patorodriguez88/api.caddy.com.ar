@@ -1,104 +1,553 @@
 openapi: 3.0.3
+
 info:
   title: Caddy API
-  version: 26.12.1
   description: |
-    API pública de Caddy para cotización de envíos, creación de servicios y consulta de seguimientos.
+    API de integración de Caddy Logística para creación de envíos,
+    consulta de tarifas, seguimiento y descarga de etiquetas.
 
-    - Todas las respuestas son JSON.
-    - Autenticación mediante **token** emitido por `/auth`.
-    - En sandbox la base URL es: `https://api.caddy.com.ar/sandbox`.
+    **Autenticación**
+
+    - Primero obtené un token usando `POST /auth/token`.
+    - Luego enviá ese token en el header:
+
+      `X-Api-Token: Bearer {tu_token}`
+
+    > Importante: actualmente **no** se utiliza el header `Authorization`,
+    > solo `X-Api-Token`.
+  version: 26.12.1
+  contact:
+    name: Caddy Logística
+    url: https://www.caddy.com.ar
+    email: info@caddy.com.ar
+  x-release-notes:
+    26.12.1:
+      date: 2025-12-04
+      changes:
+        - Primera versión pública de la API Caddy.
+        - Endpoint de autenticación `POST /auth/token` para generar tokens.
+        - Endpoint `POST /servicios` para crear nuevos envíos.
+        - Endpoint `GET /servicios` para listar envíos del cliente.
+        - Endpoint `GET /servicios?id=...` para ver el seguimiento por código.
+        - Endpoint `GET /servicios?idProveedor=...` para ver seguimiento por id de proveedor.
+        - Endpoint `GET /rates` para cotizar tarifas.
+        - Endpoint `GET /etiquetas` para descargar etiquetas en PDF.
 
 servers:
   - url: https://api.caddy.com.ar/sandbox
-    description: Sandbox
-  - url: https://api.caddy.com.ar/api
-    description: Produccion
+    description: Sandbox (testing)
+  # Podés agregar producción cuando lo tengas:
+  # - url: https://api.caddy.com.ar/v1
+  #   description: Producción
+
+tags:
+  - name: Auth
+    description: Autenticación y obtención de tokens de API.
+  - name: Servicios
+    description: Creación de envíos y consultas de seguimiento.
+  - name: Tarifas
+    description: Cotización de tarifas de envío.
+  - name: Etiquetas
+    description: Descarga de etiquetas de envíos.
+
+paths:
+  /auth/token:
+    post:
+      tags:
+        - Auth
+      summary: Obtiene un token de API
+      description: >
+        Genera un token de acceso para utilizar el resto de los endpoints.
+
+        El cliente debe autenticarse con su usuario y contraseña provistos por Caddy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - usuario
+                - password
+              properties:
+                usuario:
+                  type: string
+                  example: cliente@caddy.com.ar
+                password:
+                  type: string
+                  format: password
+                  example: "MiClaveSecreta123"
+      responses:
+        "200":
+          description: Token generado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Faltan datos o formato inválido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Usuario o contraseña incorrectos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /servicios:
+    get:
+      tags:
+        - Servicios
+      summary: Lista de servicios o seguimiento puntual
+      description: |
+        Este endpoint tiene **tres usos** según los parámetros:
+
+        1. **Listado paginado** de envíos del cliente:
+           - Usar `page` y `estado`.
+
+        2. **Seguimiento por Código de Seguimiento**:
+           - Usar `id`.
+
+        3. **Seguimiento por Código de Proveedor**:
+           - Usar `idProveedor`.
+
+        > Solo se debe usar **una modalidad por request**.
+      security:
+        - ApiToken: []
+      parameters:
+        - name: page
+          in: query
+          description: Número de página para el listado de envíos.
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: estado
+          in: query
+          description: >
+            Estado logístico del envío para el listado.
+
+            Internamente se filtra por `TransClientes.Entregado` (0/1).
+          required: false
+          schema:
+            type: string
+            example: "0"
+        - name: id
+          in: query
+          description: Código de seguimiento para obtener el detalle de seguimiento.
+          required: false
+          schema:
+            type: string
+            example: "N7SHCK1JY"
+        - name: idProveedor
+          in: query
+          description: Código del proveedor (tu identificador interno) para consultar seguimiento.
+          required: false
+          schema:
+            type: string
+            example: "ORD-12345"
+      responses:
+        "200":
+          description: Respuesta exitosa (listado o seguimiento).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ServiciosListadoResponse"
+                  - $ref: "#/components/schemas/SeguimientoResponse"
+        "204":
+          description: No se encontraron datos con los filtros/parámetros enviados.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Faltan parámetros o combinación inválida (por ejemplo, sin page/id/idProveedor).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token ausente o inválido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags:
+        - Servicios
+      summary: Crea un nuevo envío
+      description: |
+        Crea un nuevo envío (PreVenta) asociado al cliente del token.
+
+        Calcula automáticamente la tarifa en base a las dimensiones, peso,
+        código postal y servicio seleccionado (incluye lógica FLEX).
+      security:
+        - ApiToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServicioCreacionRequest"
+      responses:
+        "200":
+          description: Envío creado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServicioCreacionResponse"
+        "400":
+          description: Datos incompletos o inválidos (por ejemplo, faltan dimensiones).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token ausente o inválido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Error interno al registrar la venta.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rates:
+    get:
+      tags:
+        - Tarifas
+      summary: Cotiza un envío
+      description: |
+        Devuelve la tarifa estimada para un envío en base a:
+
+        - Código postal de destino
+        - Dimensiones (largo, ancho, alto)
+        - Peso
+        - Cantidad
+        - Valor declarado
+        - Servicio (normal / FLEX)
+
+        Antes de llamar a este endpoint debés obtener un token con `POST /auth/token`.
+      security:
+        - ApiToken: []
+      parameters:
+        - name: cp
+          in: query
+          description: Código postal de destino.
+          required: false
+          schema:
+            type: string
+            example: "5000"
+        - name: CodigoPostal
+          in: query
+          description: Alias de `cp`. Se usa si `cp` no está presente.
+          required: false
+          schema:
+            type: string
+            example: "5000"
+        - name: length
+          in: query
+          description: Largo del bulto (en cm).
+          required: true
+          schema:
+            type: number
+            format: float
+            example: 30
+        - name: width
+          in: query
+          description: Ancho del bulto (en cm).
+          required: true
+          schema:
+            type: number
+            format: float
+            example: 20
+        - name: height
+          in: query
+          description: Alto del bulto (en cm).
+          required: true
+          schema:
+            type: number
+            format: float
+            example: 15
+        - name: weight
+          in: query
+          description: Peso del bulto (en kg).
+          required: true
+          schema:
+            type: number
+            format: float
+            example: 2.5
+        - name: localidad
+          in: query
+          description: Nombre de la localidad de destino (opcional, informativo).
+          required: false
+          schema:
+            type: string
+            example: "Cordoba"
+        - name: servicio
+          in: query
+          description: >
+            Tipo de servicio.
+
+            1 = Normal / Retiro y Entrega
+
+            3 = FLEX (sujeto a disponibilidad).
+          required: false
+          schema:
+            type: integer
+            default: 1
+            example: 1
+        - name: cantidad
+          in: query
+          description: Cantidad de bultos.
+          required: false
+          schema:
+            type: integer
+            default: 1
+            example: 1
+        - name: valorDeclarado
+          in: query
+          description: Valor declarado del envío (para seguro).
+          required: false
+          schema:
+            type: number
+            format: float
+            default: 0
+            example: 15000
+        - name: flex
+          in: query
+          description: >
+            Forzá lógica FLEX.
+
+            0 = normal, 1 = FLEX. Si `servicio=3` ya se considera FLEX.
+          required: false
+          schema:
+            type: integer
+            default: 0
+            example: 0
+      responses:
+        "200":
+          description: Cotización generada correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateResponse"
+        "400":
+          description: Parámetros faltantes o código postal sin tarifa configurada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token ausente o inválido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /etiquetas:
+    get:
+      tags:
+        - Etiquetas
+      summary: Descarga la etiqueta de un envío
+      description: |
+        Genera y devuelve la etiqueta para un envío existente.
+
+        Actualmente el formato soportado es **PDF**.
+      security:
+        - ApiToken: []
+      parameters:
+        - name: codigo
+          in: query
+          description: Código de seguimiento del envío.
+          required: true
+          schema:
+            type: string
+            example: "9PLHJEIK1"
+        - name: formato
+          in: query
+          description: Formato de la etiqueta.
+          required: false
+          schema:
+            type: string
+            default: pdf
+            enum:
+              - pdf
+              # - zpl   # Reservado para futuro
+      responses:
+        "200":
+          description: Etiqueta generada correctamente.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Parámetros inválidos o falta "codigo".
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token ausente o inválido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No se encontró un envío con ese código para el cliente autenticado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
   securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: UUID
-      description: |
-        Autenticación por header estándar:
-
-        `Authorization: Bearer {token}`
-
-    XApiToken:
+    ApiToken:
       type: apiKey
       in: header
       name: X-Api-Token
       description: |
-        Alternativa al Authorization:
+        Token de acceso a la API.
+
+        Debe enviarse como:
 
         `X-Api-Token: Bearer {token}`
 
+        > Nota: actualmente **no** se usa el header `Authorization`.
+
   schemas:
-    ApiResponse:
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        result:
+          type: object
+          properties:
+            error_id:
+              type: string
+              example: "401"
+            error_msg:
+              type: string
+              example: "El token enviado es inválido o ha caducado"
+
+    AuthResponse:
       type: object
       properties:
         status:
           type: string
           example: ok
         result:
-          description: Cuerpo de la respuesta (puede ser objeto o array)
-    ErrorResponse:
-      allOf:
-        - $ref: "#/components/schemas/ApiResponse"
-        - type: object
+          type: object
           properties:
-            result:
-              type: object
-              properties:
-                error_id:
-                  type: string
-                error_msg:
-                  type: string
-          example:
-            status: error
-            result:
-              error_id: "401"
-              error_msg: "El token enviado es inválido o ha caducado"
+            token:
+              type: string
+              example: 33b3b72acb4219b5b5bcb894c9c5f87c
+            expires_in:
+              type: integer
+              description: Tiempo de vida del token en segundos (si aplica).
+              example: 86400
 
-    CotizacionResult:
+    ServiciosListadoItem:
       type: object
       properties:
-        Id:
-          type: integer
-          description: Id de la cotización registrada en `Cotizaciones`
-        Servicio:
+        Fecha:
           type: string
-          example: Retiro y Entrega
-        Fecha_Entrega:
+          format: date-time
+          example: "2025-12-04 10:30:00"
+        CodigoSeguimiento:
           type: string
-          example: Viernes
-        Localidad:
+          example: "N7SHCK1JY"
+        NumeroComprobante:
           type: string
-          example: Cordoba Capital
-        Distancia:
+          example: "0001-00001234"
+        RazonSocial:
           type: string
-          example: Hasta 50 km.
-        Cantidad:
-          type: integer
-        Valor_Declarado:
-          type: number
-        Titulo:
+          example: "CLIENTE DEMO S.A."
+        ClienteDestino:
           type: string
-          example: CADDY. TARIFA FLEX
-        Tarifa:
-          type: number
-          example: 6538
-        Seguro:
-          type: number
-        Total:
-          type: number
-        Codigo:
+          example: "Juan Pérez"
+        DomicilioDestino:
           type: string
-          example: TARIFA FLEX
+          example: "Av. Siempre Viva 742"
+        Estado:
+          type: string
+          description: Estado logístico actual.
+          example: "En distribución"
+        idProveedor:
+          type: string
+          nullable: true
+          example: "ORD-12345"
 
-    CrearServicioRequest:
+    ServiciosListadoResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        result:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiciosListadoItem"
+
+    SeguimientoItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 12345
+        Fecha:
+          type: string
+          example: "2025-12-04"
+        Hora:
+          type: string
+          example: "15:32:00"
+        Usuario:
+          type: string
+          example: "sistema"
+        CodigoSeguimiento:
+          type: string
+          example: "N7SHCK1JY"
+        Observaciones:
+          type: string
+          example: "Envío en distribución"
+        Estado:
+          type: string
+          example: "EN_DISTRIBUCION"
+        NombreCompleto:
+          type: string
+          example: "Juan Pérez"
+        Dni:
+          type: string
+          example: "30111222"
+        Destino:
+          type: string
+          example: "Av. Siempre Viva 742 - Córdoba"
+
+    SeguimientoResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        result:
+          type: array
+          description: Historial de movimientos del envío.
+          items:
+            $ref: "#/components/schemas/SeguimientoItem"
+
+    ServicioCreacionRequest:
       type: object
       required:
         - NombreCompleto
@@ -108,560 +557,256 @@ components:
       properties:
         token:
           type: string
-          description: |
-            Opcional si ya se envía en el header Authorization/X-Api-Token.
+          description: >
+            Soportado por compatibilidad, pero se recomienda
+            usar siempre el header `X-Api-Token`.
         NombreCompleto:
           type: string
-          example: Juan Pérez
+          example: "Juan Pérez"
         Direccion:
           type: string
-          example: Av. Colón 1234
+          example: "Av. Siempre Viva 742"
         Ciudad:
           type: string
-          example: Cordoba
+          example: "Cordoba"
         CodigoPostal:
           type: string
           example: "5000"
         Dni:
           type: string
-          example: "30123456"
+          example: "30111222"
         Telefono:
           type: string
-          example: "3515551234"
+          example: "3511234567"
         Mail:
           type: string
+          format: email
           example: "cliente@ejemplo.com"
-        Cobranza:
-          type: number
-          example: 15000
         Servicio:
           type: integer
-          description: 1 = normal, 3 = FLEX
+          description: 1 = normal, 3 = FLEX.
+          example: 1
+        Cantidad:
+          type: integer
+          default: 1
           example: 1
         ValorDeclarado:
           type: number
-          example: 20000
-        Cantidad:
-          type: integer
-          example: 1
+          format: float
+          description: Si es 0 o no viene, se usa un mínimo interno.
+          example: 10000
+        Cobranza:
+          type: number
+          format: float
+          description: Monto a cobrar en destino (contra entrega).
+          example: 0
+        Observaciones:
+          type: string
+          example: "Entregar en portería"
         EnviarMail:
           type: boolean
+          description: Si es true, se envía mail al destinatario.
           example: true
+        idProveedor:
+          type: string
+          description: Identificador interno del envío en tu sistema.
+          example: "ORD-12345"
         WebHook:
           type: string
-          example: "https://tienda.com/webhooks/caddy"
+          format: uri
+          description: URL para notificaciones futuras (opcional).
+          example: "https://mi-sistema.com/webhook/caddy"
         Origen:
           type: array
-          description: |
-            Datos del origen cuando se usa un proveedor externo.
-            Si no se envía `idProveedor`, se usa el cliente asociado al token.
+          description: Datos del origen (cliente/proveedor de origen).
           items:
             type: object
             properties:
               idProveedor:
                 type: string
-                example: "ML-12345"
+                example: "PROV-999"
               Nombre:
                 type: string
-                example: "Tienda MercadoLibre"
+                example: "Depósito Central"
               Direccion:
                 type: string
-                example: "Av. Siempreviva 742"
+                example: "Ruta 9 km 12"
         Box:
           type: array
           minItems: 1
           items:
             type: object
-            required: [Length, Width, Height, Weight]
+            required:
+              - Length
+              - Width
+              - Height
+              - Weight
             properties:
               Length:
                 type: number
+                format: float
                 example: 30
               Width:
                 type: number
+                format: float
                 example: 20
               Height:
                 type: number
+                format: float
                 example: 15
               Weight:
                 type: number
+                format: float
                 example: 2.5
 
-    CrearServicioResult:
+    ServicioCreacionResponse:
       type: object
       properties:
-        Id_de_Venta:
-          type: integer
-        Codigo_Seguimiento:
+        status:
           type: string
-          example: N7SHCK1JY
-        Observaciones:
-          type: string
-        Fecha_Entrega:
-          type: string
-          example: 2025-12-05
-        Localidad:
-          type: string
-        Cantidad:
-          type: integer
-        Titulo:
-          type: string
-        Tarifa:
-          type: number
-        Total:
-          type: number
-        Origen:
+          example: ok
+        result:
           type: object
           properties:
-            Nombre:
-              type: string
-            idClienteOrigen:
+            Id_de_Venta:
               type: integer
-            Direccion:
+              example: 123456
+            Codigo_Seguimiento:
               type: string
-            Ciudad:
+              example: "9PLHJEIK1"
+            Observaciones:
               type: string
-            Pais:
+              example: "La Direccion enviada no coincide con la BD, se utilizó la registrada."
+            Fecha_Entrega:
               type: string
-        Destino:
-          type: object
-          properties:
-            Nombre:
+              example: "Lunes"
+            Localidad:
               type: string
-            Direccion:
-              type: string
-            Ciudad:
-              type: string
-            CodigoPostal:
-              type: string
-            Telefono:
-              type: string
-            Mail:
-              type: string
+              example: "Cordoba"
             Cantidad:
               type: integer
-        Box:
+              example: 1
+            Titulo:
+              type: string
+              example: "Entrega Simple a Domicilio"
+            Tarifa:
+              type: number
+              example: 6538
+            Total:
+              type: number
+              example: 6538
+            Origen:
+              type: object
+              properties:
+                Nombre:
+                  type: string
+                  example: "CLIENTE DEMO S.A."
+                idClienteOrigen:
+                  type: integer
+                  example: 101
+                Direccion:
+                  type: string
+                  example: "Av. Colón 1234"
+                Ciudad:
+                  type: string
+                  example: "Cordoba"
+                Pais:
+                  type: string
+                  example: "Argentina"
+            Destino:
+              type: object
+              properties:
+                Nombre:
+                  type: string
+                  example: "Juan Pérez"
+                Direccion:
+                  type: string
+                  example: "Av. Siempre Viva 742"
+                Ciudad:
+                  type: string
+                  example: "Cordoba"
+                CodigoPostal:
+                  type: string
+                  example: "5000"
+                Telefono:
+                  type: string
+                  example: "3511234567"
+                Mail:
+                  type: string
+                  example: "cliente@ejemplo.com"
+                Cantidad:
+                  type: integer
+                  example: 1
+            Box:
+              type: object
+              properties:
+                Length:
+                  type: number
+                  example: 30
+                Width:
+                  type: number
+                  example: 20
+                Height:
+                  type: number
+                  example: 15
+                Weight:
+                  type: number
+                  example: 2.5
+            Cobranza:
+              type: number
+              example: 0
+            Servicio:
+              type: integer
+              example: 1
+            ValorDeclarado:
+              type: number
+              example: 10000
+            EnviarMail:
+              type: boolean
+              example: true
+
+    RateResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        result:
           type: object
           properties:
-            Length: { type: number }
-            Width: { type: number }
-            Height: { type: number }
-            Weight: { type: number }
-        Cobranza:
-          type: number
-        Servicio:
-          type: integer
-        ValorDeclarado:
-          type: number
-        EnviarMail:
-          type: boolean
-
-    SeguimientoItem:
-      type: object
-      properties:
-        id:
-          type: integer
-        Fecha:
-          type: string
-          example: "2025-12-04"
-        Hora:
-          type: string
-          example: "10:35:00"
-        Usuario:
-          type: string
-          example: "OPERADOR"
-        CodigoSeguimiento:
-          type: string
-        Observaciones:
-          type: string
-        Estado:
-          type: string
-          example: "En reparto"
-        NombreCompleto:
-          type: string
-        Dni:
-          type: string
-        Destino:
-          type: string
-
-    ListaServiciosItem:
-      type: object
-      properties:
-        Fecha:
-          type: string
-          example: "2025-12-04"
-        CodigoSeguimiento:
-          type: string
-          example: "N7SHCK1JY"
-        NumeroComprobante:
-          type: string
-        RazonSocial:
-          type: string
-        ClienteDestino:
-          type: string
-        DomicilioDestino:
-          type: string
-        Estado:
-          type: string
-          description: Estado logístico actual (texto)
-        idProveedor:
-          type: string
-          description: Código proveedor externo (ej. id de tienda)
-
-paths:
-  /auth:
-    post:
-      summary: Obtener token de autenticación
-      description: |
-        Devuelve un token para usar en los demás endpoints.
-
-        El token se debe enviar luego en:
-        - `Authorization: Bearer {token}` **o**
-        - `X-Api-Token: Bearer {token}` **o**
-        - como parámetro `token` (solo compatibilidad).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [usuario, password]
-              properties:
-                usuario:
-                  type: string
-                  example: api_user
-                password:
-                  type: string
-                  format: password
-                  example: "********"
-      responses:
-        "200":
-          description: Token emitido correctamente
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse"
-              example:
-                status: ok
-                result:
-                  token: "33b3b72acb4219b5b5bcb894c9c5f87c"
-                  expiracion: "2025-12-31T23:59:59-03:00"
-        "401":
-          description: Credenciales inválidas
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /rates:
-    get:
-      summary: Cotizar un envío
-      description: |
-        Devuelve la tarifa estimada según código postal, dimensiones y peso.
-
-        Requiere token (Authorization / X-Api-Token / `token`).
-      security:
-        - BearerAuth: []
-        - XApiToken: []
-      parameters:
-        - in: query
-          name: cp
-          schema:
-            type: string
-          required: true
-          description: Código postal de destino (ej. 5000)
-        - in: query
-          name: length
-          schema:
-            type: number
-          required: true
-        - in: query
-          name: width
-          schema:
-            type: number
-          required: true
-        - in: query
-          name: height
-          schema:
-            type: number
-          required: true
-        - in: query
-          name: weight
-          schema:
-            type: number
-          required: true
-        - in: query
-          name: localidad
-          schema:
-            type: string
-          required: false
-        - in: query
-          name: servicio
-          schema:
-            type: integer
-            default: 1
-            description: 1 = normal, 3 = FLEX
-        - in: query
-          name: cantidad
-          schema:
-            type: integer
-            default: 1
-        - in: query
-          name: valorDeclarado
-          schema:
-            type: number
-            default: 0
-        - in: query
-          name: flex
-          schema:
-            type: integer
-            default: 0
-            description: 1 fuerza tratamiento FLEX
-        - in: query
-          name: token
-          schema:
-            type: string
-          required: false
-          description: Alternativa si no se envía en el header.
-      responses:
-        "200":
-          description: Cotización generada
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse"
-              example:
-                status: ok
-                result:
-                  Id: 1234
-                  Servicio: "Retiro y Entrega"
-                  Fecha_Entrega: "Viernes"
-                  Localidad: "Cordoba Capital"
-                  Distancia: "Hasta 50 km."
-                  Cantidad: 1
-                  Valor_Declarado: 10000
-                  Titulo: "CADDY. TARIFA FLEX"
-                  Tarifa: 6538
-                  Seguro: 0
-                  Total: 6538
-                  Codigo: "183"
-        "400":
-          description: Error en parámetros o en obtención de precio
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Token faltante o inválido
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /servicios:
-    get:
-      summary: Listar servicios o consultar seguimiento
-      description: |
-        - `?page={n}` → lista de servicios del cliente.
-        - `?id={CodigoSeguimiento}` → detalle de seguimiento.
-        - `?idProveedor={codigo}` → seguimiento a partir del id de proveedor.
-
-        Siempre se filtra por el cliente asociado al token y sus clientes relacionados (`Relacion`, `AdminEnvios`).
-      security:
-        - BearerAuth: []
-        - XApiToken: []
-      parameters:
-        - in: query
-          name: page
-          schema:
-            type: integer
-          required: false
-          description: Página de resultados (lista de servicios).
-        - in: query
-          name: estado
-          schema:
-            type: string
-            example: "0"
-          required: false
-          description: |
-            Solo para `page`: estado logístico (ej. 0 = no entregado, 1 = entregado).
-        - in: query
-          name: id
-          schema:
-            type: string
-          required: false
-          description: Código de seguimiento (para ver movimientos).
-        - in: query
-          name: idProveedor
-          schema:
-            type: string
-          required: false
-          description: Código de proveedor externo (ej. id de tienda).
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: "#/components/schemas/ApiResponse"
-              examples:
-                ListaServicios:
-                  summary: Lista de servicios (page)
-                  value:
-                    status: ok
-                    result:
-                      - Fecha: "2025-12-04"
-                        CodigoSeguimiento: "N7SHCK1JY"
-                        NumeroComprobante: "0001-00001234"
-                        RazonSocial: "CLIENTE ORIGEN SA"
-                        ClienteDestino: "Juan Pérez"
-                        DomicilioDestino: "Av. Colón 1234"
-                        Estado: "En proceso de distribución"
-                        idProveedor: "ML-12345"
-                SeguimientoPorCodigo:
-                  summary: Seguimiento por CódigoSeguimiento
-                  value:
-                    status: ok
-                    result:
-                      - id: 1
-                        Fecha: "2025-12-04"
-                        Hora: "10:00:00"
-                        Usuario: "OPERADOR"
-                        CodigoSeguimiento: "N7SHCK1JY"
-                        Observaciones: "En proceso de distribución"
-                        Estado: "PROCESO DE DISTRIBUCION"
-                        NombreCompleto: "Juan Pérez"
-                        Dni: "30123456"
-                        Destino: "Av. Colón 1234 - Cordoba"
-                SeguimientoPendiente:
-                  summary: Venta aún no cargada a Seguimiento (PreVenta)
-                  value:
-                    status: ok
-                    result:
-                      - id: 999
-                        Fecha: "2025-12-04"
-                        Hora: "09:30:00"
-                        Usuario: "API"
-                        CodigoSeguimiento: "N7SHCK1JY"
-                        Observaciones: "La venta aun no fue cargada al sistema de seguimiento"
-                        Estado: "Pendiente"
-                        NombreCompleto: "Juan Pérez"
-                        Dni: ""
-                        Destino: "Av. Colón 1234 - Cordoba"
-        "204":
-          description: No se encontraron datos para el criterio indicado
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                result:
-                  error_id: "204"
-                  error_msg: "Seguimiento no encontrado"
-        "401":
-          description: Token faltante o inválido / cliente sin NdeCliente asociado
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-    post:
-      summary: Crear un nuevo servicio (envío)
-      description: |
-        Crea una venta en `PreVenta`, genera un `CodigoSeguimiento` y opcionalmente
-        envía un mail al destinatario.
-
-        Requiere token válido asociado a un usuario que tenga `NdeCliente` configurado.
-      security:
-        - BearerAuth: []
-        - XApiToken: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CrearServicioRequest"
-            example:
-              NombreCompleto: "Juan Pérez"
-              Direccion: "Av. Colón 1234"
-              Ciudad: "Cordoba"
-              CodigoPostal: "5000"
-              Dni: "30123456"
-              Telefono: "3515551234"
-              Mail: "cliente@ejemplo.com"
-              Cobranza: 15000
-              Servicio: 1
-              ValorDeclarado: 20000
-              Cantidad: 1
-              EnviarMail: true
-              WebHook: "https://tienda.com/webhooks/caddy"
-              Origen:
-                - idProveedor: "ML-12345"
-                  Nombre: "Tienda MercadoLibre"
-                  Direccion: "Av. Siempreviva 742"
-              Box:
-                - Length: 30
-                  Width: 20
-                  Height: 15
-                  Weight: 2.5
-      responses:
-        "200":
-          description: Servicio creado correctamente
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse"
-              example:
-                status: ok
-                result:
-                  Id_de_Venta: 12345
-                  Codigo_Seguimiento: "N7SHCK1JY"
-                  Observaciones: ""
-                  Fecha_Entrega: "2025-12-05"
-                  Localidad: "Cordoba"
-                  Cantidad: 1
-                  Titulo: "CADDY SIMPLE"
-                  Tarifa: 6538
-                  Total: 6538
-                  Origen:
-                    Nombre: "CLIENTE ORIGEN SA"
-                    idClienteOrigen: 10
-                    Direccion: "Ruta 9 km 123"
-                    Ciudad: "Cordoba"
-                    Pais: "Argentina"
-                  Destino:
-                    Nombre: "Juan Pérez"
-                    Direccion: "Av. Colón 1234"
-                    Ciudad: "Cordoba"
-                    CodigoPostal: "5000"
-                    Telefono: "3515551234"
-                    Mail: "cliente@ejemplo.com"
-                    Cantidad: 1
-                  Box:
-                    Length: 30
-                    Width: 20
-                    Height: 15
-                    Weight: 2.5
-                  Cobranza: 15000
-                  Servicio: 1
-                  ValorDeclarado: 20000
-                  EnviarMail: true
-        "400":
-          description: Error de validación o datos incompletos
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Token inválido, sin token o sin NdeCliente asociado al usuario
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Error interno al insertar la venta
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+            Id:
+              type: integer
+              example: 321
+            Servicio:
+              type: string
+              example: "Retiro y Entrega"
+            Fecha_Entrega:
+              type: string
+              example: "Martes"
+            Localidad:
+              type: string
+              example: "Cordoba Capital"
+            Distancia:
+              type: string
+              example: "Hasta 30 km."
+            Cantidad:
+              type: integer
+              example: 1
+            Valor_Declarado:
+              type: number
+              example: 15000
+            Titulo:
+              type: string
+              example: "Entrega Simple a Domicilio"
+            Tarifa:
+              type: number
+              example: 6538
+            Seguro:
+              type: number
+              example: 0
+            Total:
+              type: number
+              example: 6538
+            Codigo:
+              type: string
+              example: "183"
