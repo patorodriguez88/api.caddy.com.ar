@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
-  title: Caddy API - Sandbox
-  version: 1.0.0
+  title: Caddy API
+  version: 26.12.1
   description: |
     API pública de Caddy para cotización de envíos, creación de servicios y consulta de seguimientos.
 
@@ -12,6 +12,8 @@ info:
 servers:
   - url: https://api.caddy.com.ar/sandbox
     description: Sandbox
+  - url: https://api.caddy.com.ar/api
+    description: Produccion
 
 components:
   securitySchemes:
