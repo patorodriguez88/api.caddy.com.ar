@@ -1,15 +1,4 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 0);
-$headers = function_exists('getallheaders') ? getallheaders() : [];
-file_put_contents(__DIR__ . '/debug_headers.log', print_r($headers, true), FILE_APPEND);
-
-// Opcional: iniciar buffer de salida para poder limpiar antes del PDF
-if (ob_get_length() === false) {
-
-    ob_start();
-}
-
 require_once 'conexion/conexion.php';
 require_once 'clases/token.php';
 require_once 'clases/respuestas.class.php';
@@ -27,18 +16,6 @@ class EtiquetaService extends conexion
         // Convertir de UTF-8 a ISO-8859-1 para FPDF
         return mb_convert_encoding($txt, 'ISO-8859-1', 'UTF-8');
     }
-
-    // private function validarToken(string $token)
-    // {
-    //     $this->token = $token;
-
-    //     $query = "SELECT ut.TokenId,ut.UsuarioId,ut.Estado,u.NdeCliente 
-    //             FROM usuarios_token as ut join usuarios as u ON ut.UsuarioId=u.id 
-    //             WHERE ut.Token='" . $this->token . "' AND ut.Estado='Activo'";
-
-    //     $resp = $this->obtenerDatos($query);
-    //     return $resp ? $resp[0] : null;
-    // }
 
     private function dashedLine($pdf, $x1, $y1, $x2, $y2, $dash = 1, $gap = 1)
     {
@@ -61,9 +38,6 @@ class EtiquetaService extends conexion
             );
         }
     }
-
-
-
 
     /**
      * Datos de la venta / envío a partir del Código de Seguimiento
@@ -459,17 +433,6 @@ class EtiquetaService extends conexion
 
     public function procesar(string $codigo, string $idOrigen, string $formato)
     {
-        // $tokenData = $this->validarToken($token);
-        // if (!$tokenData) {
-        //     return [
-        //         'error'  => true,
-        //         'tipo'   => 'token',
-        //         'detail' => 'Token invalido o caducado'
-        //     ];
-        // }
-
-        // 👉 Este es el id de cliente origen (tabla Clientes.id)
-        // $idOrigen = (int)$tokenData['NdeCliente'];
 
         // 👉 Ahora SÍ filtramos por dueño del paquete
         $datos = $this->obtenerDatosEnvio($codigo, $idOrigen);
@@ -622,41 +585,3 @@ if (!empty($resultado['error'])) {
 $resp = $_respuestas->error_500('Error inesperado en etiqueta.php');
 http_response_code(500);
 echo json_encode($resp);
-// // $codigo  = $_GET['codigo']  ?? null;
-// // $formato = $_GET['formato'] ?? 'pdf';
-// // $token   = $_GET['token']   ?? null;
-
-// if (!$codigo || !$token) {
-//     header('Content-Type: application/json');
-//     $datos = $_respuestas->error_400('Faltan parametros: codigo y/o token');
-//     echo json_encode($datos);
-//     http_response_code($datos['result']['error_id'] ?? 400);
-//     exit;
-// }
-
-// $svc = new EtiquetaService();
-
-// $resultado = $svc->procesar($codigo, $token, $formato);
-
-// // Si llegó acá, es porque hubo error (procesar hace exit cuando todo sale bien)
-// header('Content-Type: application/json');
-
-// if (!empty($resultado['error'])) {
-//     if ($resultado['tipo'] === 'token') {
-//         $resp = $_respuestas->error_401($resultado['detail']);
-//         http_response_code(401);
-//     } elseif ($resultado['tipo'] === 'no_encontrado') {
-//         $resp = $_respuestas->error_204($resultado['detail']);
-//         http_response_code(204);
-//     } else {
-//         $resp = $_respuestas->error_500($resultado['detail'] ?? 'Error generando etiqueta');
-//         http_response_code(500);
-//     }
-//     echo json_encode($resp);
-//     exit;
-// }
-
-// // Por las dudas, si no hay error pero tampoco se generó nada:
-// $resp = $_respuestas->error_500('Error inesperado en etiqueta.php');
-// http_response_code(500);
-// echo json_encode($resp);
