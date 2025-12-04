@@ -5,37 +5,36 @@ ini_set('display_errors', 0);
 if (ob_get_length() === false) {
     ob_start();
 }
+
 require_once 'conexion/conexion.php';
+require_once 'clases/Token.php';
 require_once 'clases/respuestas.class.php';
-// Para PDF: asegurate de tener FPDF en esta ruta (ajustá si lo tenés en otro lado)
 require_once 'libs/fpdf182/fpdf.php';
-require_once 'libs/phpqrcode/qrlib.php';   // 👈 NUEVO
+require_once 'libs/phpqrcode/qrlib.php';
 
 $_respuestas = new respuestas;
 
-/**
- * Servicio de etiquetas
- */
+
 class EtiquetaService extends conexion
 {
-    private $token;
+    // private $token;
     private function pdfTxt(string $txt): string
     {
         // Convertir de UTF-8 a ISO-8859-1 para FPDF
         return mb_convert_encoding($txt, 'ISO-8859-1', 'UTF-8');
     }
 
-    private function validarToken(string $token)
-    {
-        $this->token = $token;
+    // private function validarToken(string $token)
+    // {
+    //     $this->token = $token;
 
-        $query = "SELECT ut.TokenId,ut.UsuarioId,ut.Estado,u.NdeCliente 
-                FROM usuarios_token as ut join usuarios as u ON ut.UsuarioId=u.id 
-                WHERE ut.Token='" . $this->token . "' AND ut.Estado='Activo'";
+    //     $query = "SELECT ut.TokenId,ut.UsuarioId,ut.Estado,u.NdeCliente 
+    //             FROM usuarios_token as ut join usuarios as u ON ut.UsuarioId=u.id 
+    //             WHERE ut.Token='" . $this->token . "' AND ut.Estado='Activo'";
 
-        $resp = $this->obtenerDatos($query);
-        return $resp ? $resp[0] : null;
-    }
+    //     $resp = $this->obtenerDatos($query);
+    //     return $resp ? $resp[0] : null;
+    // }
 
     private function dashedLine($pdf, $x1, $y1, $x2, $y2, $dash = 1, $gap = 1)
     {
@@ -454,19 +453,19 @@ class EtiquetaService extends conexion
     }
 
 
-    public function procesar(string $codigo, string $token, string $formato)
+    public function procesar(string $codigo, string $idOrigen, string $formato)
     {
-        $tokenData = $this->validarToken($token);
-        if (!$tokenData) {
-            return [
-                'error'  => true,
-                'tipo'   => 'token',
-                'detail' => 'Token invalido o caducado'
-            ];
-        }
+        // $tokenData = $this->validarToken($token);
+        // if (!$tokenData) {
+        //     return [
+        //         'error'  => true,
+        //         'tipo'   => 'token',
+        //         'detail' => 'Token invalido o caducado'
+        //     ];
+        // }
 
         // 👉 Este es el id de cliente origen (tabla Clientes.id)
-        $idOrigen = (int)$tokenData['NdeCliente'];
+        // $idOrigen = (int)$tokenData['NdeCliente'];
 
         // 👉 Ahora SÍ filtramos por dueño del paquete
         $datos = $this->obtenerDatosEnvio($codigo, $idOrigen);
@@ -535,6 +534,12 @@ class EtiquetaService extends conexion
             // cantidad = 1 → uso el flujo normal
             $this->generarPDF($datos);
         }
+        // Si llegó acá, formato no soportado
+        return [
+            'error'  => true,
+            'tipo'   => 'formato',
+            'detail' => 'Formato de etiqueta no soportado'
+        ];
     }
 }
 
@@ -552,31 +557,55 @@ if ($method !== 'GET') {
     exit;
 }
 
-$codigo  = $_GET['codigo']  ?? null;
-$formato = $_GET['formato'] ?? 'pdf';
-$token   = $_GET['token']   ?? null;
+// 1) Obtener token (Bearer o ?token=)
+$token = Token::obtenerToken();
 
-if (!$codigo || !$token) {
+if (!$token) {
     header('Content-Type: application/json');
-    $datos = $_respuestas->error_400('Faltan parametros: codigo y/o token');
-    echo json_encode($datos);
-    http_response_code($datos['result']['error_id'] ?? 400);
+    $resp = $_respuestas->error_400("Debe enviar token (Bearer o query)");
+    echo json_encode($resp);
+    http_response_code(400);
     exit;
 }
-
+// 2) Instanciar servicio (tiene la conexión a BD)
 $svc = new EtiquetaService();
-$resultado = $svc->procesar($codigo, $token, $formato);
 
-// Si llegó acá, es porque hubo error (procesar hace exit cuando todo sale bien)
+// 3) Validar token usando la BD del servicio
+$tokenData = Token::validar($token, $svc);
+
+if (!$tokenData) {
+    header('Content-Type: application/json');
+    $resp = $_respuestas->error_401("Token inválido o vencido");
+    echo json_encode($resp);
+    http_response_code(401);
+    exit;
+}
+// 4) Tomar NdeCliente como idOrigen
+$idOrigen = $tokenData['NdeCliente'] ?? null;
+
+$codigo  = $_GET['codigo']  ?? null;
+$formato = $_GET['formato'] ?? 'pdf';
+
+if (!$codigo) {
+    header('Content-Type: application/json');
+    $resp = $_respuestas->error_400('Falta parámetro: codigo');
+    echo json_encode($resp);
+    http_response_code(400);
+    exit;
+}
+// 5) Procesar etiqueta (PDF o ZPL)
+$resultado = $svc->procesar($codigo, (string)$idOrigen, $formato);
+
+// Si llegó acá, es porque procesar NO hizo exit, entonces hubo error lógico
 header('Content-Type: application/json');
 
 if (!empty($resultado['error'])) {
-    if ($resultado['tipo'] === 'token') {
-        $resp = $_respuestas->error_401($resultado['detail']);
-        http_response_code(401);
-    } elseif ($resultado['tipo'] === 'no_encontrado') {
+    if ($resultado['tipo'] === 'no_encontrado') {
         $resp = $_respuestas->error_204($resultado['detail']);
         http_response_code(204);
+    } elseif ($resultado['tipo'] === 'formato') {
+        $resp = $_respuestas->error_400($resultado['detail']);
+        http_response_code(400);
     } else {
         $resp = $_respuestas->error_500($resultado['detail'] ?? 'Error generando etiqueta');
         http_response_code(500);
@@ -585,7 +614,45 @@ if (!empty($resultado['error'])) {
     exit;
 }
 
-// Por las dudas, si no hay error pero tampoco se generó nada:
+// Por las dudas
 $resp = $_respuestas->error_500('Error inesperado en etiqueta.php');
 http_response_code(500);
 echo json_encode($resp);
+// // $codigo  = $_GET['codigo']  ?? null;
+// // $formato = $_GET['formato'] ?? 'pdf';
+// // $token   = $_GET['token']   ?? null;
+
+// if (!$codigo || !$token) {
+//     header('Content-Type: application/json');
+//     $datos = $_respuestas->error_400('Faltan parametros: codigo y/o token');
+//     echo json_encode($datos);
+//     http_response_code($datos['result']['error_id'] ?? 400);
+//     exit;
+// }
+
+// $svc = new EtiquetaService();
+
+// $resultado = $svc->procesar($codigo, $token, $formato);
+
+// // Si llegó acá, es porque hubo error (procesar hace exit cuando todo sale bien)
+// header('Content-Type: application/json');
+
+// if (!empty($resultado['error'])) {
+//     if ($resultado['tipo'] === 'token') {
+//         $resp = $_respuestas->error_401($resultado['detail']);
+//         http_response_code(401);
+//     } elseif ($resultado['tipo'] === 'no_encontrado') {
+//         $resp = $_respuestas->error_204($resultado['detail']);
+//         http_response_code(204);
+//     } else {
+//         $resp = $_respuestas->error_500($resultado['detail'] ?? 'Error generando etiqueta');
+//         http_response_code(500);
+//     }
+//     echo json_encode($resp);
+//     exit;
+// }
+
+// // Por las dudas, si no hay error pero tampoco se generó nada:
+// $resp = $_respuestas->error_500('Error inesperado en etiqueta.php');
+// http_response_code(500);
+// echo json_encode($resp);
