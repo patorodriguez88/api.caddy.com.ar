@@ -1,6 +1,6 @@
 <?php
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 //SE AGREGA EMAIL =TRUE EN EL PEDIDO DE CARGAR ENVIO PARA QUE ENVIE MAIL AL CLIENTE
 //SI NO VIENE ESE PARAMETRO NO ENVIA MAIL
 
@@ -1003,7 +1003,7 @@ class servicios extends conexion
 
         $direccion = mb_convert_encoding($this->direccion, 'ISO-8859-1', 'UTF-8');
         $ciudad = mb_convert_encoding($this->ciudad, 'ISO-8859-1', 'UTF-8');
-        $DireccionClienteOrigen = mb_convert_encoding($this->DireccionClienteOrigen, 'ISO-8859-1', 'UTF-8');
+        $DireccionClienteOrigen = mb_convert_encoding((string)($this->DireccionClienteOrigen ?? ''), 'ISO-8859-1', 'UTF-8');
         $ClienteDestino = mb_convert_encoding($this->nombre, 'ISO-8859-1', 'UTF-8');
 
         //BUSCO EL CLIENTE DESTINO
