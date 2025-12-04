@@ -1,88 +1,98 @@
+
 <?php
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 
-// 1) PRIMERO: conexión
 require_once __DIR__ . '/conexion/conexion.php';
-
-// 2) LUEGO: clases de lógica
-require_once __DIR__ . '/clases/token.class.php';
 require_once __DIR__ . '/clases/respuestas.class.php';
 require_once __DIR__ . '/clases/servicios.class.php';
+require_once __DIR__ . '/clases/token.class.php';
 
-$_respuestas = new respuestas;
-$_servicios  = new servicios;
+$_respuestas = new respuestas();
+$_servicios  = new servicios();
 
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
 
-    // SIEMPRE indicamos que la respuesta es JSON
     header('Content-Type: application/json; charset=utf-8');
 
-    // 1) Obtener token (Bearer / X-Api-Token / ?token=)
+    // 1) Obtener token (Authorization / X-Api-Token / ?token=)
     $token = Token::obtenerToken();
 
+    if (!$token && isset($_GET['token'])) {
+        $token = trim($_GET['token']);
+    }
+
     if (!$token) {
-        $datosArray = $_respuestas->error_400("Debe enviar token (Bearer o query ?token=)");
-        http_response_code($datosArray['result']['error_id'] ?? 400);
+        $datosArray = $_respuestas->error_401('Debe enviar token (Bearer o query "token")');
+        http_response_code(401);
         echo json_encode($datosArray);
         exit;
     }
 
-    // 2) Validar token contra la BD usando la misma conexión que servicios
+    // 2) Validar token
     $tokenData = Token::validar($token, $_servicios);
 
     if (!$tokenData) {
-        $datosArray = $_respuestas->error_401("Token inválido o vencido");
-        http_response_code($datosArray['result']['error_id'] ?? 401);
+        $datosArray = $_respuestas->error_401('El token enviado es inválido o ha caducado');
+        http_response_code(401);
         echo json_encode($datosArray);
         exit;
     }
 
-    // 3) Tomar NdeCliente como id de cliente origen
-    $idOrigen = $tokenData['NdeCliente'] ?? null;
+    // 3) Obtener idClienteOrigen (cliente dueño) a partir del UsuarioId
+    $usuarioId = (int)($tokenData['UsuarioId'] ?? 0);
 
-    if (!$idOrigen) {
-        $datosArray = $_respuestas->error_401("Token sin cliente asociado");
-        http_response_code($datosArray['result']['error_id'] ?? 401);
+    if ($usuarioId <= 0) {
+        $datosArray = $_respuestas->error_401('Token sin usuario asociado');
+        http_response_code(401);
         echo json_encode($datosArray);
         exit;
     }
 
-    // 4) Routing según parámetros
+    // Este método ya lo tenés en servicios.class.php
+    $clienteOrigen = $_servicios->clienteOrigen($usuarioId);
+
+    if (!$clienteOrigen || empty($clienteOrigen[0]['id'])) {
+        $datosArray = $_respuestas->error_401(
+            'El usuario no tiene un cliente asignado (NdeCliente). No es posible consultar envíos.'
+        );
+        http_response_code(401);
+        echo json_encode($datosArray);
+        exit;
+    }
+
+    $idClienteOrigen = (int)$clienteOrigen[0]['id'];
+
+    // 4) Router de parámetros: page / id / idProveedor
     if (isset($_GET['page'])) {
 
-        $pagina = (int) $_GET['page'];
-        $estado = $_GET['estado'] ?? null;
+        $pagina = (int)$_GET['page'];
+        $estado = isset($_GET['estado']) ? $_GET['estado'] : '0'; // Ej: 0 = no entregado, 1 = entregado
 
-        // La lógica de validación de permisos está dentro de servicios.class.php
-        $datosArray = $_servicios->listaServicios($pagina, $idOrigen, $estado);
-    } elseif (isset($_GET['codigo'])) {
+        $datosArray = $_servicios->listaServicios($pagina, $idClienteOrigen, $estado);
+    } elseif (isset($_GET['id'])) {
 
-        // Consulta por Código de Seguimiento (id)
-        $codigoseguimiento = $_GET['codigo'];
-
-        $datosArray = $_servicios->obtenerSeguimiento($codigoseguimiento, $idOrigen);
+        $codigoSeguimiento = $_GET['id'];
+        $datosArray        = $_servicios->obtenerSeguimiento($codigoSeguimiento, $idClienteOrigen);
     } elseif (isset($_GET['idProveedor'])) {
 
-        // Consulta por Código de Proveedor
-        $codigoseguimiento = $_GET['idProveedor'];
-
-        $datosArray = $_servicios->obtenerSeguimientoProveedor($codigoseguimiento, $idOrigen);
+        $idProveedor = $_GET['idProveedor'];
+        $datosArray  = $_servicios->obtenerSeguimientoProveedor($idProveedor, $idClienteOrigen);
     } else {
-        // Sin parámetros válidos
-        $datosArray = $_respuestas->error_400("Faltan parámetros para GET /servicios");
+
+        $datosArray = $_respuestas->error_400('Faltan parámetros para GET /servicios');
     }
 
-    // Definimos el código HTTP *antes* del echo
+    // 5) Código HTTP según error_id si existe
     $code = 200;
     if (isset($datosArray['result']['error_id'])) {
-        $code = (int) $datosArray['result']['error_id'];
+        $code = (int)$datosArray['result']['error_id'];
     }
-    http_response_code($code);
 
-    echo json_encode($datosArray);
+    http_response_code($code);
+    echo json_encode($datosArray, JSON_UNESCAPED_UNICODE);
     exit;
 } elseif ($method === 'POST') {
 
