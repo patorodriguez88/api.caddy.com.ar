@@ -1,9 +1,0 @@
-{
-    "conexion":{
-        "server" : "ftp.dintersa.com.ar",
-        "user" : "dinter6_usuarioweb",
-        "password" : "usuarioelectronico",
-        "database" : "dinter6_triangularcopia",
-        "port": "3306"
-    }
-}
