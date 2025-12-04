@@ -124,6 +124,54 @@ class servicios extends conexion
         return $datos;
     }
 
+    // public function obtenerSeguimiento($id, $idClienteOrigen)
+    // {
+    //     $_respuestas     = new respuestas;
+    //     $idClienteOrigen = (int)$idClienteOrigen;
+
+    //     if ($idClienteOrigen <= 0) {
+    //         return $_respuestas->error_401('Cliente no asociado al token');
+    //     }
+
+    //     // Busco el cliente origen real del envío
+    //     $query = "SELECT IngBrutosOrigen FROM " . $this->tableTrans . " WHERE CodigoSeguimiento = '" . $id . "'";
+    //     $datos = parent::obtenerDatos($query);
+
+    //     if (!$datos || !isset($datos[0]['IngBrutosOrigen'])) {
+    //         return $_respuestas->error_204('No se encontraron datos del envío');
+    //     }
+
+    //     $id2 = (int)$datos[0]['IngBrutosOrigen'];
+
+    //     // Si el envío pertenece a otro cliente, verifico relación / permisos
+    //     if ($id2 !== $idClienteOrigen) {
+    //         $query = "SELECT Relacion,AdminEnvios FROM " . $this->tableClientes . " WHERE id = '" . $id2 . "'";
+    //         $datos = parent::obtenerDatos($query);
+
+    //         if (
+    //             !$datos ||
+    //             (
+    //                 (int)$datos[0]['Relacion'] !== $idClienteOrigen &&
+    //                 (int)$datos[0]['AdminEnvios'] !== 1
+    //             )
+    //         ) {
+    //             return $_respuestas->error_204();
+    //         }
+    //     }
+
+    //     // Si llegamos acá, el cliente está autorizado a ver el seguimiento
+    //     $query = "SELECT id,Fecha,Hora,Usuario,CodigoSeguimiento,Observaciones,Estado,NombreCompleto,Dni,Destino 
+    //               FROM " . $this->table . " 
+    //               WHERE CodigoSeguimiento = '" . $id . "'";
+
+    //     $datos = parent::obtenerDatos($query);
+
+    //     if ($datos) {
+    //         return $datos;
+    //     }
+
+    //     return $_respuestas->error_204();
+    // }
     public function obtenerSeguimiento($id, $idClienteOrigen)
     {
         $_respuestas     = new respuestas;
@@ -133,44 +181,137 @@ class servicios extends conexion
             return $_respuestas->error_401('Cliente no asociado al token');
         }
 
-        // Busco el cliente origen real del envío
-        $query = "SELECT IngBrutosOrigen FROM " . $this->tableTrans . " WHERE CodigoSeguimiento = '" . $id . "'";
-        $datos = parent::obtenerDatos($query);
+        // ==============================
+        // 1) Determinar dueño del envío
+        //    (TransClientes.IngBrutosOrigen)
+        // ==============================
+        $queryEnvio = "SELECT IngBrutosOrigen 
+                   FROM " . $this->tableTrans . " 
+                   WHERE CodigoSeguimiento = '" . $id . "'
+                   LIMIT 1";
+        $datosEnvio = parent::obtenerDatos($queryEnvio);
 
-        if (!$datos || !isset($datos[0]['IngBrutosOrigen'])) {
-            return $_respuestas->error_204('No se encontraron datos del envío');
-        }
+        $autorizado   = false;
+        $idClienteEnv = 0;
 
-        $id2 = (int)$datos[0]['IngBrutosOrigen'];
+        if ($datosEnvio && isset($datosEnvio[0]['IngBrutosOrigen'])) {
+            $idClienteEnv = (int)$datosEnvio[0]['IngBrutosOrigen'];
 
-        // Si el envío pertenece a otro cliente, verifico relación / permisos
-        if ($id2 !== $idClienteOrigen) {
-            $query = "SELECT Relacion,AdminEnvios FROM " . $this->tableClientes . " WHERE id = '" . $id2 . "'";
-            $datos = parent::obtenerDatos($query);
+            if ($idClienteEnv === $idClienteOrigen) {
+                // Es el mismo cliente dueño del envío
+                $autorizado = true;
+            } else {
+                // Verifico si el cliente del envío está relacionado
+                $queryCli = "SELECT Relacion,AdminEnvios 
+                         FROM " . $this->tableClientes . " 
+                         WHERE id = '" . $idClienteEnv . "' 
+                         LIMIT 1";
+                $datosCli = parent::obtenerDatos($queryCli);
 
-            if (
-                !$datos ||
-                (
-                    (int)$datos[0]['Relacion'] !== $idClienteOrigen &&
-                    (int)$datos[0]['AdminEnvios'] !== 1
-                )
-            ) {
-                return $_respuestas->error_204();
+                if (
+                    $datosCli &&
+                    (
+                        (int)$datosCli[0]['Relacion'] === $idClienteOrigen ||
+                        (int)$datosCli[0]['AdminEnvios'] === 1
+                    )
+                ) {
+                    $autorizado = true;
+                }
+            }
+        } else {
+            // No está en TransClientes → puede estar solo en PreVenta
+            // Chequeo dueño por NCliente
+            $sqlPreOwner = "SELECT NCliente 
+                        FROM PreVenta 
+                        WHERE CodigoSeguimiento = '" . $id . "'
+                          AND Eliminado = '0'
+                        ORDER BY id DESC
+                        LIMIT 1";
+            $datosOwner = parent::obtenerDatos($sqlPreOwner);
+
+            if ($datosOwner && isset($datosOwner[0]['NCliente'])) {
+                $idClienteEnv = (int)$datosOwner[0]['NCliente'];
+
+                if ($idClienteEnv === $idClienteOrigen) {
+                    $autorizado = true;
+                } else {
+                    $queryCli = "SELECT Relacion,AdminEnvios 
+                             FROM " . $this->tableClientes . " 
+                             WHERE id = '" . $idClienteEnv . "' 
+                             LIMIT 1";
+                    $datosCli = parent::obtenerDatos($queryCli);
+
+                    if (
+                        $datosCli &&
+                        (
+                            (int)$datosCli[0]['Relacion'] === $idClienteOrigen ||
+                            (int)$datosCli[0]['AdminEnvios'] === 1
+                        )
+                    ) {
+                        $autorizado = true;
+                    }
+                }
             }
         }
 
-        // Si llegamos acá, el cliente está autorizado a ver el seguimiento
-        $query = "SELECT id,Fecha,Hora,Usuario,CodigoSeguimiento,Observaciones,Estado,NombreCompleto,Dni,Destino 
-                  FROM " . $this->table . " 
-                  WHERE CodigoSeguimiento = '" . $id . "'";
-
-        $datos = parent::obtenerDatos($query);
-
-        if ($datos) {
-            return $datos;
+        if (!$autorizado) {
+            // Para no revelar si el código existe o no, devolvemos 204 “sin datos”
+            return $_respuestas->error_204('No se encontraron datos del envío');
         }
 
-        return $_respuestas->error_204();
+        // ==============================
+        // 2) Buscar movimientos en Seguimiento
+        // ==============================
+        $querySeg = "SELECT id,Fecha,Hora,Usuario,CodigoSeguimiento,Observaciones,Estado,NombreCompleto,Dni,Destino
+                 FROM " . $this->table . "
+                 WHERE CodigoSeguimiento = '" . $id . "'
+                 ORDER BY id ASC";
+        $datosSeg = parent::obtenerDatos($querySeg);
+
+        if ($datosSeg && count($datosSeg) > 0) {
+            $respuesta           = $_respuestas->response;
+            $respuesta["result"] = $datosSeg;
+            return $respuesta;
+        }
+
+        // ==============================
+        // 3) Si no hay Seguimiento, revisar PreVenta pendiente
+        // ==============================
+        $sqlPreVenta = "SELECT id, Fecha, Hora, ClienteDestino, DomicilioDestino, LocalidadDestino, Cargado
+                    FROM PreVenta
+                    WHERE CodigoSeguimiento = '" . $id . "'
+                      AND Eliminado='0'
+                    ORDER BY id DESC
+                    LIMIT 1";
+        $datosPre = parent::obtenerDatos($sqlPreVenta);
+
+        if ($datosPre && isset($datosPre[0]['Cargado']) && (int)$datosPre[0]['Cargado'] === 0) {
+
+            // Armamos una fila con la misma estructura que Seguimiento
+            $fila = array(
+                "id"                => $datosPre[0]['id'],
+                "Fecha"             => isset($datosPre[0]['Fecha']) ? $datosPre[0]['Fecha'] : "",
+                "Hora"              => isset($datosPre[0]['Hora']) ? $datosPre[0]['Hora'] : "",
+                "Usuario"           => "API",
+                "CodigoSeguimiento" => $id,
+                "Observaciones"     => "La venta aun no fue cargada al sistema de seguimiento",
+                "Estado"            => "Pendiente",
+                "NombreCompleto"    => isset($datosPre[0]['ClienteDestino']) ? $datosPre[0]['ClienteDestino'] : "",
+                "Dni"               => "",
+                "Destino"           => (isset($datosPre[0]['DomicilioDestino']) ? $datosPre[0]['DomicilioDestino'] : "")
+                    . (isset($datosPre[0]['LocalidadDestino']) ? " - " . $datosPre[0]['LocalidadDestino'] : "")
+            );
+
+            $respuesta           = $_respuestas->response;
+            $respuesta["result"] = array($fila);
+
+            return $respuesta;
+        }
+
+        // ==============================
+        // 4) No hay info
+        // ==============================
+        return $_respuestas->error_204("Seguimiento no encontrado");
     }
 
     // BUSCO EN SEGUIMIENTO DESDE EL ID DEL PROVEEDOR

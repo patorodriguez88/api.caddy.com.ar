@@ -58,10 +58,10 @@ if ($method === 'GET') {
 
         // La lógica de validación de permisos está dentro de servicios.class.php
         $datosArray = $_servicios->listaServicios($pagina, $idOrigen, $estado);
-    } elseif (isset($_GET['id'])) {
+    } elseif (isset($_GET['codigo'])) {
 
         // Consulta por Código de Seguimiento (id)
-        $codigoseguimiento = $_GET['id'];
+        $codigoseguimiento = $_GET['codigo'];
 
         $datosArray = $_servicios->obtenerSeguimiento($codigoseguimiento, $idOrigen);
     } elseif (isset($_GET['idProveedor'])) {
