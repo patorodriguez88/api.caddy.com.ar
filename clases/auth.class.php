@@ -74,7 +74,7 @@ class auth extends conexion
 
     private function obtenerDatosUsuario($correo)
     {
-        $query = "SELECT id,PASSWORD,Estado,NdeCliente FROM usuarios WHERE Usuario = '$correo'";
+        $query = "SELECT id,PASSWORD,Estado,NdeCliente FROM usuarios WHERE Usuario = '$correo' AND Nivel=4 AND ACTIVO=1 AND Estado='Activo'";
         $datos = parent::obtenerDatos($query);
         if (isset($datos[0]["id"])) {
             return $datos;
@@ -102,7 +102,7 @@ class auth extends conexion
     private function insertarTokenCliente($id, $token)
     {
 
-        $query = "UPDATE Clientes SET Token='$token' WHERE id='$id'";
+        $query = "UPDATE Clientes SET Token='$token' WHERE id='$id' AND Eliminado=0";
         $verificaCliente = parent::nonQuery($query);
 
         if ($verificaCliente) {
