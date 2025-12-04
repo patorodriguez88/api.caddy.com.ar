@@ -34,3 +34,9 @@ RewriteRule ^ - [R=204,L]
   Header always set Access-Control-Max-Age "86400"
   Header always set Vary "Origin"
 </IfModule>
+
+RewriteEngine On
+
+# Pasar Authorization a PHP
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%0]
