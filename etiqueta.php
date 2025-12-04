@@ -193,7 +193,7 @@ class EtiquetaService extends conexion
         $yAfterTop = max($yTop + $logoHeight, $pdf->GetY());
 
         /* ========= BULTO X/Y DEBAJO DEL LOGO (AJUSTADO) ========= */
-        if ($totalBultos > 1) {
+        if ($totalBultos >= 1) {
 
             $pdf->SetFont('Arial', 'B', 20); // 👈 MÁS GRANDE
 
