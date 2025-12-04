@@ -1,0 +1,4 @@
+# Permitir el acceso a openapi.yaml en esta carpeta
+<Files "openapi.yaml">
+  Require all granted
+</Files>
