@@ -485,6 +485,16 @@ class servicios extends conexion
 
             // Cliente origen directo del usuario
             $ClienteOrigen = $this->clienteOrigen($idUsuario);
+            // VALIDAR QUE EL USUARIO TENGA NdeCliente
+            if (
+                !$ClienteOrigen ||
+                empty($ClienteOrigen[0]['id']) ||
+                empty($ClienteOrigen[0]['nombrecliente'])
+            ) {
+                return $_respuestas->error_401(
+                    'El usuario no tiene un cliente asignado (NdeCliente). No es posible crear envíos.'
+                );
+            }
         } else {
 
             $idProveedor      = $datos['Origen'][0]['idProveedor'];
