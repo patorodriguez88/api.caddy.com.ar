@@ -4,49 +4,58 @@ require_once __DIR__ . '/../conexion/conexion.php';
 class Token
 {
     /**
-     * Lee el token desde:
-     *  - Header: Authorization: Bearer xxx
-     *  - o query: ?token=xxx
-     *  - o body POST: token=xxx (por si lo usás en otros endpoints)
+     * Obtiene el token desde:
+     *  - Authorization: Bearer xxx
+     *  - X-Api-Token: xxx   (o "Bearer xxx")
+     *  - ?token=xxx
+     *  - $_POST['token']
      */
     public static function obtenerToken(): ?string
     {
-        $authHeader = null;
+        $headers = [];
 
-        // 1) Intentar con getallheaders()
         if (function_exists('getallheaders')) {
             $headers = getallheaders();
+        }
 
-            foreach ($headers as $k => $v) {
-                if (strtolower($k) === 'authorization') {
-                    $authHeader = $v;
-                    break;
+        // Normalizamos las claves a minúsculas
+        $norm = [];
+        foreach ($headers as $k => $v) {
+            $norm[strtolower($k)] = $v;
+        }
+
+        // 1) Authorization: Bearer xxx  (si algún día llega)
+        if (isset($norm['authorization'])) {
+            $authHeader = trim($norm['authorization']);
+
+            if (stripos($authHeader, 'Bearer ') === 0) {
+                $token = trim(substr($authHeader, 7));
+                if ($token !== '') {
+                    return $token;
                 }
             }
         }
 
-        // 2) Fallbacks típicos de Apache / Nginx
-        if (!$authHeader && isset($_SERVER['HTTP_AUTHORIZATION'])) {
-            $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
-        }
-        if (!$authHeader && isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
-            $authHeader = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
-        }
+        // 2) X-Api-Token: xxx  (lo que vemos en el log)
+        if (isset($norm['x-api-token'])) {
+            $value = trim($norm['x-api-token']);
 
-        // 3) Parsear Bearer
-        if ($authHeader && stripos($authHeader, 'Bearer ') === 0) {
-            $token = trim(substr($authHeader, 7));
-            if ($token !== '') {
-                return $token;
+            // Si viene como "Bearer xxx", le saco el prefijo
+            if (stripos($value, 'Bearer ') === 0) {
+                $value = trim(substr($value, 7));
+            }
+
+            if ($value !== '') {
+                return $value;
             }
         }
 
-        // 4) Fallback por query: ?token=xxx
+        // 3) ?token=xxx en query
         if (!empty($_GET['token'])) {
             return trim($_GET['token']);
         }
 
-        // 5) Fallback por POST (por si lo usás en otros lados)
+        // 4) token en body (por si en algún endpoint lo mandás por POST)
         if (!empty($_POST['token'])) {
             return trim($_POST['token']);
         }
@@ -55,12 +64,10 @@ class Token
     }
 
     /**
-     * Valida el token contra la BD usando la conexión que ya tiene $db
+     * Valida el token contra la BD.
      */
     public static function validar(string $token, conexion $db): ?array
     {
-        // Si tenés un helper para escapar, usalo; si no, dejalo así y
-        // más adelante podemos pasarlo a prepared statements.
         $query = "
             SELECT 
                 ut.TokenId,
