@@ -363,7 +363,7 @@ paths:
         Genera y devuelve la etiqueta para un envío existente en formato PDF o ZPL, lista para imprimir.
 
         Ejemplo visual de una etiqueta PDF:
-        ![Ejemplo de etiqueta PDF](./images/etiqueta-ejemplo.png)
+        ![Ejemplo de etiqueta PDF](https://api.caddy.com.ar/sandbox/api-docs/images/etiqueta-ejemplo.png)
       security:
         - ApiToken: []
       parameters:
