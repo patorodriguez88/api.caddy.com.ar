@@ -6,7 +6,7 @@ ini_set('display_errors', 1);
 require_once __DIR__ . '/conexion/conexion.php';
 
 // 2) LUEGO: clases de lógica
-require_once __DIR__ . '/clases/Token.php';
+require_once __DIR__ . '/clases/token.class.php';
 require_once __DIR__ . '/clases/respuestas.class.php';
 require_once __DIR__ . '/clases/servicios.class.php';
 

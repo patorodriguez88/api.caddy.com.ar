@@ -1,6 +1,6 @@
 <?php
 require_once 'conexion/conexion.php';
-require_once 'clases/token.php';
+require_once 'clases/token.class.php';
 require_once 'clases/respuestas.class.php';
 require_once 'libs/fpdf182/fpdf.php';
 require_once 'libs/phpqrcode/qrlib.php';
