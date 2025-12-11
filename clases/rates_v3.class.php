@@ -452,102 +452,32 @@ class Rates extends conexion
     {
         $_resp = new respuestas();
 
-        // Si no hay bultos, usamos el flujo clásico (GET compat)
-        if (!isset($p['bultos']) || !is_array($p['bultos']) || count($p['bultos']) === 0) {
-            return $this->cotizarGet($p);
+        // 1) Token (como ya hacés)
+        $token  = Token::obtenerToken();
+        $info   = Token::validar($token, $this);
+        if (!$info) {
+            return [401, $_resp->error_401('Token inválido o caducado')];
         }
 
-        /* ==========================
-    * 1) TOKEN (Bearer o ?token=)
-    * ========================== */
-        $token = Token::obtenerToken();
+        // 2) parámetros comunes
+        $this->cp        = trim((string)$p['cp']);
+        $this->localidad = $p['localidad'] ?? '';
+        $this->servicio  = isset($p['servicio']) ? (int)$p['servicio'] : 1;
+        $this->flex      = isset($p['flex'])     ? (int)$p['flex']     : 0;
 
-        // Backwards compatible: si viene en $p['token'], lo usamos como último recurso
-        if (!$token && !empty($p['token'])) {
-            $token = trim((string)$p['token']);
-        }
-
-        if (!$token) {
-            return [
-                401,
-                $_resp->error_401('Debe enviar token (Bearer o query "token")')
-            ];
-        }
-
-        // Validar token contra la BD (usa la conexión de esta clase)
-        $tokenInfo = Token::validar($token, $this);
-        if (!$tokenInfo) {
-            return [
-                401,
-                $_resp->error_401('El Token que envió es inválido o ha caducado')
-            ];
-        }
-
-        /* ==========================
-    * 2) Validar parámetros básicos
-    * ========================== */
-        if (!isset($p['cp']) || $p['cp'] === '') {
-            return [
-                400,
-                $_resp->error_400('Falta parámetro: cp')
-            ];
-        }
-
-        $bultos = $p['bultos'];
+        $bultos = $p['bultos'] ?? [];
         if (!is_array($bultos) || count($bultos) === 0) {
-            return [
-                400,
-                $_resp->error_400('Debe enviar al menos un bulto')
-            ];
+            return [400, $_resp->error_400('Debe enviar al menos un bulto')];
         }
 
-        // Validar campos por bulto
-        $totalVolumen = 0.0;
-        $totalPeso = 0.0;
-        $totalValorDec = 0.0;
-
-        foreach ($bultos as $idx => $b) {
-            $idxMsg = ' (bulto índice ' . $idx . ')';
-
-            foreach (['length', 'width', 'height', 'weight'] as $k) {
-                if (!isset($b[$k]) || $b[$k] === '') {
-                    return [
-                        400,
-                        $_resp->error_400('Falta parámetro: ' . $k . $idxMsg)
-                    ];
-                }
-            }
-
-            $l = (float)$b['length'];
-            $w = (float)$b['width'];
-            $h = (float)$b['height'];
-            $peso = (float)$b['weight'];
-
-            $totalVolumen += $this->calc_dim($l, $w, $h, $peso);
-            $totalPeso += $peso;
-            $totalValorDec += isset($b['valorDeclarado']) ? (float)$b['valorDeclarado'] : 0.0;
+        // 3) seguro mínimo
+        $seguroMin = $this->sure();
+        if (!$seguroMin) {
+            return [400, $_resp->error_400('No se pudo obtener monto mínimo de seguro')];
         }
+        $this->valorDeclaradoMinimo = (int)$seguroMin[0]['Valor'];
 
-        /* ==========================
-    * 3) Normalizar entrada agregada
-    * ========================== */
-        $this->cp = trim((string)$p['cp']);
-        $this->localidad = isset($p['localidad']) ? (string)$p['localidad'] : '';
-        $this->servicio = isset($p['servicio']) ? (int)$p['servicio'] : 1;
-        $this->flex = isset($p['flex']) ? (int)$p['flex'] : 0;
-
-        // Cantidad = cantidad de bultos enviados
-        $this->cantidad = count($bultos);
-        $this->valorDeclarado = $totalValorDec;
-
-        // Representamos volumen total como largo = volumen, ancho=1, alto=1
-        // (la tarifa usa m3, así que lo importante es el producto)
-        $this->length = $totalVolumen;
-        $this->width = 1.0;
-        $this->height = 1.0;
-        $this->weight = $totalPeso;
-
-        // Etiqueta de servicio según código (igual que en cotizarGet)
+        // servicio label (igual que ahora)
         if ($this->servicio === 1) {
             $this->servicio_label = 'Retiro y Entrega';
         } elseif ($this->servicio === 3) {
@@ -556,71 +486,136 @@ class Rates extends conexion
             $this->servicio_label = 'Solo Entrega';
         }
 
-        /* ==========================
-    * 4) Seguro mínimo
-    * ========================== */
-        $seguroMin = $this->sure();
-        if (!$seguroMin) {
-            return [
-                400,
-                $_resp->error_400('No se pudo obtener monto mínimo de seguro')
-            ];
+        $esFlex   = ($this->servicio === 3) || ($this->flex === 1);
+        $cpEval   = ($this->cp >= '5000' && $this->cp <= '5023') ? '5000' : $this->cp;
+        $esCapital = ($this->cp >= '5000' && $this->cp <= '5023');
+
+        // 4) ciudad, fecha, distancia base (no cambia por bulto)
+        if ($esCapital) {
+            $citydestination = 'Cordoba Capital';
+            $hora  = (int)date('G');
+            $fecha = ($hora > 11) ? date('Y-m-d', strtotime('+1 day')) : date('Y-m-d');
+            $send_date = $this->get_nombre_dia($fecha);
+            $codigoGeneral = ''; // podés completar desde Productos o Localidades
+            $distance_label = 'Hasta 50 km.'; // este dato puede salir de Localidades / Productos
+        } else {
+            $dateRow   = $this->date_send($this->cp);
+            $send_date = $dateRow[0]['DiaSalida'] ?? $this->get_nombre_dia(date('Y-m-d'));
+            $codigoGeneral = $dateRow[0]['Codigo'] ?? '';
+            $citydestination = $this->localidad ?: ($dateRow[0]['Localidad'] ?? '');
+            $km = (int)($dateRow[0]['Km'] ?? 0);
+            $distance_label = ($km === 500) ? 'Más de 50 km.' : ('Hasta ' . $km . ' km.');
         }
-        $this->valorDeclaradoMinimo = (int)$seguroMin[0]['Valor'];
 
-        $esFlex = ($this->servicio === 3) || ($this->flex === 1);
+        // 5) cliente origen desde token
+        $usuarioId = (int)($info['UsuarioId'] ?? 0);
+        $cliente   = $this->clienteOrigen($usuarioId);
 
-        // Normalización de CP capital
-        $cpEval = $this->cp;
-        if ($this->cp >= '5000' && $this->cp <= '5023') {
-            $cpEval = '5000';
-        }
+        $envios       = [];
+        $totalTarifa  = 0.0;
+        $totalSeguro  = 0.0;
+        $totalValorDec = 0.0;
 
-        /*==========================* 5) FLEX en capital -> tarifa fija
-        * ========================== */
-        if ($esFlex && ($this->cp >= '5000' && $this->cp <= '5023')) {
+        // 6) loop por bulto
+        foreach ($bultos as $idx => $b) {
+            $l = (float)($b['length'] ?? 0);
+            $w = (float)($b['width']  ?? 0);
+            $h = (float)($b['height'] ?? 0);
+            $peso = (float)($b['weight'] ?? 0);
+            $valorDec = isset($b['valorDeclarado']) ? (float)$b['valorDeclarado'] : 0.0;
 
-            $precio = $this->rate_flex();
-
-            if ($precio === 4 || $this->isErrorPrecio($precio)) {
-                return [
-                    400,
-                    $_resp->error_400('Error en la obtención de precio FLEX')
-                ];
+            // volumen m3
+            $volumen = $this->calc_dim($l, $w, $h, $peso);
+            if ($volumen <= 0 || $peso <= 0) {
+                return [400, $_resp->error_400('Datos incompletos en bulto ' . ($idx + 1))];
             }
 
-            return $this->armarRespuestaOk($precio, $tokenInfo, true);
-        }
+            // tarifa por bulto
+            if ($esFlex && $esCapital) {
+                $price = $this->rate_flex();
+            } else {
+                $price = $this->rate($cpEval, $l, $w, $h, $peso);
+            }
 
-        /* ==========================
-            * 6) NO FLEX (o FLEX fuera capital) → validar volumen total
-            * ========================== */
-        $dim = $this->calc_dim($this->length, $this->width, $this->height, $this->weight);
-        if ($dim == 0) {
-            return [
-                400,
-                $_resp->error_400('Faltan datos del paquete (volumen total 0)')
+            if ($price === 4 || $this->isErrorPrecio($price)) {
+                return [400, $_resp->error_400('No se pudo obtener tarifa para bulto ' . ($idx + 1))];
+            }
+
+            $row        = $price[0];
+            $precioBase = (float)$row['PrecioVenta'];
+            $sure_porc  = isset($row['Seguro']) ? (float)$row['Seguro'] : 0.0;
+
+            // seguro por bulto (aplicando mínimo individual)
+            if ($valorDec <= 0 || $valorDec <= $this->valorDeclaradoMinimo) {
+                $valorDecEfectivo = $this->valorDeclaradoMinimo;
+                $seguro = 0.0;
+            } else {
+                $valorDecEfectivo = (float)round($valorDec);
+                $seguro = $valorDecEfectivo * $sure_porc / 100.0;
+            }
+
+            $tarifa = $precioBase;          // 1 servicio = 1 bulto
+            $total  = $tarifa + $seguro;
+
+            // Insertar cotización por bulto
+            $id_quote = 0;
+            if ($cliente !== null) {
+                $clienteId   = (int)($cliente['id'] ?? 0);
+                $clienteName = (string)($cliente['nombrecliente'] ?? '');
+
+                if ($clienteId > 0 && $clienteName !== '') {
+                    // Para cada bulto, cantidad = 1
+                    $this->cantidad = 1;
+                    $id_quote = $this->insert_quote(
+                        $clienteId,
+                        $clienteName,
+                        $row['Titulo'],
+                        (int)round($tarifa),
+                        $citydestination,
+                        $l,
+                        $w,
+                        $h,
+                        $peso,
+                        (int)($row['Kilometros'] ?? 0),
+                        $send_date
+                    );
+                }
+            }
+
+            $envios[] = [
+                'Indice'          => $idx + 1,
+                'Id'              => $id_quote,
+                'Titulo'          => $row['Titulo'] ?? '',
+                'Codigo'          => $row['Codigo'] ?? $codigoGeneral,
+                'Volumen_m3'      => $volumen,
+                'Peso'            => $peso,
+                'Valor_Declarado' => (int)round($valorDec),
+                'Tarifa'          => (int)round($tarifa),
+                'Seguro'          => (int)round($seguro),
+                'Total'           => (int)round($total),
             ];
+
+            $totalValorDec += $valorDec;
+            $totalTarifa   += $tarifa;
+            $totalSeguro   += $seguro;
         }
 
-        // Tarifa general usando volumen total
-        $precio = $this->rate($cpEval, $this->length, $this->width, $this->height, $this->weight);
+        $respuesta = $_resp->response;
+        $respuesta['result'] = [
+            'Servicio'      => $this->servicio_label,
+            'Fecha_Entrega' => $send_date,
+            'Localidad'     => $citydestination,
+            'Distancia'     => $distance_label,
+            'Cantidad'      => count($envios),
+            'Envios'        => $envios,
+            'Totales'       => [
+                'Valor_Declarado_Total' => (int)round($totalValorDec),
+                'Tarifa_Total'          => (int)round($totalTarifa),
+                'Seguro_Total'          => (int)round($totalSeguro),
+                'Total'                 => (int)round($totalTarifa + $totalSeguro),
+            ],
+        ];
 
-        if ($precio === 4) {
-            return [
-                400,
-                $_resp->error_400('Código postal no encontrado o sin tarifa configurada')
-            ];
-        }
-
-        if ($this->isErrorPrecio($precio)) {
-            return [
-                400,
-                $_resp->error_400('Error en la obtención de precio')
-            ];
-        }
-
-        $esCapital = ($this->cp >= '5000' && $this->cp <= '5023');
-        return $this->armarRespuestaOk($precio, $tokenInfo, $esCapital);
+        return [200, $respuesta];
     }
 }
