@@ -272,20 +272,29 @@ class Rates extends conexion
             }
         }
 
+        $tarifaTotal = (float)$this->cantidad * $precioVenta;
+
+        $tarifa_label = (int)round($tarifaTotal);
+        $seguro_label = (int)round($surePrice);
+        $total_label  = (int)round($tarifaTotal + $surePrice);
+
         $respuesta = $_resp->response;
         $respuesta['result'] = [
-            'Id'              => $id_quote,
-            'Servicio'        => $this->servicio_label,
-            'Fecha_Entrega'   => $send_date,
-            'Localidad'       => $citydestination,
-            'Distancia'       => $distance_label,
-            'Cantidad'        => $this->cantidad,
-            'Valor_Declarado' => $valorDec,
-            'Titulo'          => $price[0]['Titulo'],
-            'Tarifa'          => $price_label,
-            'Seguro'          => (int)round($surePrice),
-            'Total'           => $total_label,
-            'Codigo'          => $codigo,
+            'Id'                    => $id_quote,
+            'Servicio'              => $this->servicio_label,
+            'Fecha_Entrega'         => $send_date,
+            'Localidad'             => $citydestination,
+            'Distancia'             => $distance_label,
+            'Cantidad'              => $this->cantidad,
+            'Valor_Declarado_Total' => (int)round($valorDec),   // si querés dejar claro que es total
+            'Titulo'                => $price[0]['Titulo'],
+
+            // 🔹 Aquí la clave:
+            'Tarifa'                => $tarifa_label,   // TOTAL logística (sin seguro)
+            'Seguro'                => $seguro_label,   // TOTAL seguro
+            'Total'                 => $total_label,    // Tarifa + Seguro
+
+            'Codigo'                => $codigo,
         ];
 
         return [200, $respuesta];
