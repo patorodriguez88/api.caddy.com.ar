@@ -285,14 +285,31 @@ class Rates extends conexion
         // ==========================
         // 1) Seguro (igual que antes)
         // ==========================
-        if ($valorDec <= 0 || $valorDec <= $this->valorDeclaradoMinimo) {
-            $valorDec  = $this->valorDeclaradoMinimo;
-            // $surePrice = 0.0;
-        } else {
-            $valorDec  = (float)round($valorDec);
-            $surePrice = $valorDec * $sure_porc / 100.0;
+        // if ($valorDec <= 0 || $valorDec <= $this->valorDeclaradoMinimo) {
+        //     $valorDec  = $this->valorDeclaradoMinimo;
+        //     // $surePrice = 0.0;
+        // } else {
+        //     $valorDec  = (float)round($valorDec);
+        //     $surePrice = $valorDec * $sure_porc / 100.0;
+        // }
+        // ==========================
+        // 1) Seguro SIEMPRE (incluso FLEX)
+        // ==========================
+        if ($valorDec <= 0) {
+            $valorDec = 0.0;
         }
 
+        // Aplica mínimo de seguro
+        if ($valorDec > 0 && $valorDec < $this->valorDeclaradoMinimo) {
+            $valorDec = $this->valorDeclaradoMinimo;
+        }
+
+        if ($valorDec > 0) {
+            $valorDec  = (float)round($valorDec);
+            $surePrice = $valorDec * $sure_porc / 100.0;
+        } else {
+            $surePrice = 0.0;
+        }
         $km = (int)round($price[0]['Kilometros']);
         $distance_label = ($km === 500) ? 'Más de 50 km.' : ('Hasta ' . $km . ' km.');
 
