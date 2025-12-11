@@ -447,26 +447,30 @@ class Rates extends conexion
         return parent::obtenerDatos($query);
     }
 
-
     public function cotizar(array $p): array
     {
         $_resp = new respuestas();
 
         // 1) Token (como ya hacés)
-        $token  = Token::obtenerToken();
-        $info   = Token::validar($token, $this);
+        $token = Token::obtenerToken();
+        $info  = Token::validar($token, $this);
         if (!$info) {
             return [401, $_resp->error_401('Token inválido o caducado')];
         }
 
         // 2) parámetros comunes
+        if (empty($p['cp'])) {
+            return [400, $_resp->error_400('Falta parámetro: cp')];
+        }
+
         $this->cp        = trim((string)$p['cp']);
         $this->localidad = $p['localidad'] ?? '';
         $this->servicio  = isset($p['servicio']) ? (int)$p['servicio'] : 1;
         $this->flex      = isset($p['flex'])     ? (int)$p['flex']     : 0;
 
-        $bultos = $p['bultos'] ?? [];
-        if (!is_array($bultos) || count($bultos) === 0) {
+        // Aceptamos tanto "Bultos" como "bultos"
+        $bultosIn = $p['Bultos'] ?? ($p['bultos'] ?? []);
+        if (!is_array($bultosIn) || count($bultosIn) === 0) {
             return [400, $_resp->error_400('Debe enviar al menos un bulto')];
         }
 
@@ -486,8 +490,8 @@ class Rates extends conexion
             $this->servicio_label = 'Solo Entrega';
         }
 
-        $esFlex   = ($this->servicio === 3) || ($this->flex === 1);
-        $cpEval   = ($this->cp >= '5000' && $this->cp <= '5023') ? '5000' : $this->cp;
+        $esFlex    = ($this->servicio === 3) || ($this->flex === 1);
+        $cpEval    = ($this->cp >= '5000' && $this->cp <= '5023') ? '5000' : $this->cp;
         $esCapital = ($this->cp >= '5000' && $this->cp <= '5023');
 
         // 4) ciudad, fecha, distancia base (no cambia por bulto)
@@ -496,8 +500,8 @@ class Rates extends conexion
             $hora  = (int)date('G');
             $fecha = ($hora > 11) ? date('Y-m-d', strtotime('+1 day')) : date('Y-m-d');
             $send_date = $this->get_nombre_dia($fecha);
-            $codigoGeneral = ''; // podés completar desde Productos o Localidades
-            $distance_label = 'Hasta 50 km.'; // este dato puede salir de Localidades / Productos
+            $codigoGeneral  = '';
+            $distance_label = 'Hasta 50 km.'; // podés refinarlo si querés
         } else {
             $dateRow   = $this->date_send($this->cp);
             $send_date = $dateRow[0]['DiaSalida'] ?? $this->get_nombre_dia(date('Y-m-d'));
@@ -511,24 +515,23 @@ class Rates extends conexion
         $usuarioId = (int)($info['UsuarioId'] ?? 0);
         $cliente   = $this->clienteOrigen($usuarioId);
 
-        $envios       = [];
-        $totalTarifa  = 0.0;
-        $totalSeguro  = 0.0;
-        $totalValorDec = 0.0;
+        $bultosOut      = [];
+        $totalTarifa    = 0.0;
+        $totalSeguro    = 0.0;
+        $totalValorDec  = 0.0;
 
         // 6) loop por bulto
-        foreach ($bultos as $idx => $b) {
-            $l = (float)($b['length'] ?? 0);
-            $w = (float)($b['width']  ?? 0);
-            $h = (float)($b['height'] ?? 0);
+        foreach ($bultosIn as $idx => $b) {
+            $l    = (float)($b['length'] ?? 0);
+            $w    = (float)($b['width']  ?? 0);
+            $h    = (float)($b['height'] ?? 0);
             $peso = (float)($b['weight'] ?? 0);
             $valorDec = isset($b['valorDeclarado']) ? (float)$b['valorDeclarado'] : 0.0;
 
             // volumen m3
             $volumen = $this->calc_dim($l, $w, $h, $peso);
-            // formateos lindos para la API
-            $volumen_fmt = round($volumen, 4);  // ej: 0.0840
-            $peso_fmt    = round($peso, 3);     // ej: 3.200
+            $volumen_fmt = round($volumen, 4); // ej: 0.0840
+            $peso_fmt    = round($peso, 3);    // ej: 3.200
 
             if ($volumen <= 0 || $peso <= 0) {
                 return [400, $_resp->error_400('Datos incompletos en bulto ' . ($idx + 1))];
@@ -586,7 +589,7 @@ class Rates extends conexion
                 }
             }
 
-            $bultos[] = [
+            $bultosOut[] = [
                 'Indice'          => $idx + 1,
                 'Id'              => $id_quote,
                 'Titulo'          => $row['Titulo'] ?? '',
@@ -610,8 +613,8 @@ class Rates extends conexion
             'Fecha_Entrega' => $send_date,
             'Localidad'     => $citydestination,
             'Distancia'     => $distance_label,
-            'Cantidad'      => count($bultos),
-            'Bultos'        => $bultos,
+            'Cantidad'      => count($bultosOut),
+            'Bultos'        => $bultosOut,
             'Totales'       => [
                 'Valor_Declarado_Total' => (int)round($totalValorDec),
                 'Tarifa_Total'          => (int)round($totalTarifa),
