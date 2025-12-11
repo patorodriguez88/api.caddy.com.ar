@@ -181,6 +181,98 @@ class Rates extends conexion
     /**
      * Arma respuesta exitosa y registra en Cotizaciones
      */
+    // private function armarRespuestaOk(array $price, array $tokenInfo, bool $esCapital): array
+    // {
+    //     $_resp = new respuestas();
+
+    //     $sure_porc = isset($price[0]['Seguro']) ? (float)$price[0]['Seguro'] : 0.0;
+    //     $valorDec  = $this->valorDeclarado;
+    //     $surePrice = 0.0;
+
+    //     if ($valorDec <= 0 || $valorDec <= $this->valorDeclaradoMinimo) {
+    //         $valorDec  = $this->valorDeclaradoMinimo;
+    //         $surePrice = 0.0;
+    //     } else {
+    //         $valorDec  = (float)round($valorDec);
+    //         $surePrice = $valorDec * $sure_porc / 100.0;
+    //     }
+
+    //     $km = (int)round($price[0]['Kilometros']);
+    //     $distance_label = ($km === 500) ? 'Más de 50 km.' : ('Hasta ' . $km . ' km.');
+
+    //     $precioVenta = (float)$price[0]['PrecioVenta'];
+    //     $total       = ($this->cantidad * $precioVenta) + $surePrice;
+
+    //     // Labels redondeados (siempre)
+    //     $price_label = (int)round($precioVenta);
+    //     $total_label = (int)round($total);
+
+    //     if ($esCapital) {
+    //         $citydestination = 'Cordoba Capital';
+    //         $hora  = (int)date('G');
+    //         $fecha = ($hora > 11) ? date('Y-m-d', strtotime('+1 day')) : date('Y-m-d');
+    //         $send_date = $this->get_nombre_dia($fecha);
+    //         $codigo    = $price[0]['Codigo'] ?? '';
+    //     } else {
+    //         $dateRow   = $this->date_send($this->cp);
+    //         $send_date = $dateRow[0]['DiaSalida'] ?? $this->get_nombre_dia(date('Y-m-d'));
+    //         $codigo    = $dateRow[0]['Codigo'] ?? ($price[0]['Codigo'] ?? '');
+    //         $citydestination = $this->localidad;
+    //         if ($citydestination === '' && isset($dateRow[0]['Localidad'])) {
+    //             $citydestination = $dateRow[0]['Localidad'];
+    //         }
+    //     }
+
+    //     // Cliente origen según UsuarioId del token
+    //     $usuarioId = (int)($tokenInfo['UsuarioId'] ?? 0);
+    //     $cliente   = $this->clienteOrigen($usuarioId);
+
+    //     // Por defecto: no insertamos nada
+    //     $id_quote = 0;
+
+    //     if ($cliente !== null) {
+    //         $clienteId   = (int)($cliente['id'] ?? 0);
+    //         $clienteName = (string)($cliente['nombrecliente'] ?? '');
+
+    //         // Solo insertamos si tenemos id y nombre
+    //         if ($clienteId > 0 && $clienteName !== '') {
+    //             $id_quote = $this->insert_quote(
+    //                 $clienteId,
+    //                 $clienteName,
+    //                 $price[0]['Titulo'],
+    //                 $price_label,
+    //                 $citydestination,
+    //                 $this->length,
+    //                 $this->width,
+    //                 $this->height,
+    //                 $this->weight,
+    //                 $km,
+    //                 $send_date
+    //             );
+    //         }
+    //     }
+
+    //     $respuesta = $_resp->response;
+    //     $respuesta['result'] = [
+    //         'Id'              => $id_quote,
+    //         'Servicio'        => $this->servicio_label,
+    //         'Fecha_Entrega'   => $send_date,
+    //         'Localidad'       => $citydestination,
+    //         'Distancia'       => $distance_label,
+    //         'Cantidad'        => $this->cantidad,
+    //         'Valor_Declarado' => $valorDec,
+    //         'Titulo'          => $price[0]['Titulo'],
+    //         'Tarifa'          => $price_label,
+    //         'Seguro'          => (int)round($surePrice),
+    //         'Total'           => $total_label,
+    //         'Codigo'          => $codigo,
+    //     ];
+
+    //     return [200, $respuesta];
+    // }
+    /**
+     * Arma respuesta exitosa y registra en Cotizaciones
+     */
     private function armarRespuestaOk(array $price, array $tokenInfo, bool $esCapital): array
     {
         $_resp = new respuestas();
@@ -189,6 +281,9 @@ class Rates extends conexion
         $valorDec  = $this->valorDeclarado;
         $surePrice = 0.0;
 
+        // ==========================
+        // 1) Seguro (igual que antes)
+        // ==========================
         if ($valorDec <= 0 || $valorDec <= $this->valorDeclaradoMinimo) {
             $valorDec  = $this->valorDeclaradoMinimo;
             $surePrice = 0.0;
@@ -200,13 +295,46 @@ class Rates extends conexion
         $km = (int)round($price[0]['Kilometros']);
         $distance_label = ($km === 500) ? 'Más de 50 km.' : ('Hasta ' . $km . ' km.');
 
-        $precioVenta = (float)$price[0]['PrecioVenta'];
-        $total       = ($this->cantidad * $precioVenta) + $surePrice;
+        $precioVenta = (float)$price[0]['PrecioVenta']; // tarifa base (1 envío)
+        $esFlex      = ($this->servicio === 3) || ($this->flex === 1);
 
-        // Labels redondeados (siempre)
-        $price_label = (int)round($precioVenta);
-        $total_label = (int)round($total);
+        // ==========================
+        // 2) Tarifa logística total
+        //    - FLEX en Capital:
+        //        1º: 100%
+        //        2º: 0%
+        //        3º+: 50%
+        //    - Resto: cantidad * precio
+        // ==========================
+        $cant = max(1, (int)$this->cantidad);
+        $tarifaTotal = 0.0;
 
+        if ($esFlex && $esCapital) {
+            // 1º al 100%
+            if ($cant >= 1) {
+                $tarifaTotal += $precioVenta;
+            }
+            // 2º bonificado (nada que sumar)
+            // 3º en adelante al 50%
+            if ($cant >= 3) {
+                $tarifaTotal += ($cant - 2) * ($precioVenta * 0.5);
+            }
+        } else {
+            // comportamiento clásico
+            $tarifaTotal = $cant * $precioVenta;
+        }
+
+        // Total final (tarifa + seguro)
+        $total = $tarifaTotal + $surePrice;
+
+        // Labels redondeados (para respuesta)
+        $price_unit_label = (int)round($precioVenta);   // unitario
+        $tarifa_label     = (int)round($tarifaTotal);   // total logística
+        $total_label      = (int)round($total);         // tarifa + seguro
+
+        // ==========================
+        // 3) Fecha de entrega y ciudad
+        // ==========================
         if ($esCapital) {
             $citydestination = 'Cordoba Capital';
             $hora  = (int)date('G');
@@ -223,7 +351,9 @@ class Rates extends conexion
             }
         }
 
-        // Cliente origen según UsuarioId del token
+        // ==========================
+        // 4) Cliente origen según token
+        // ==========================
         $usuarioId = (int)($tokenInfo['UsuarioId'] ?? 0);
         $cliente   = $this->clienteOrigen($usuarioId);
 
@@ -236,11 +366,14 @@ class Rates extends conexion
 
             // Solo insertamos si tenemos id y nombre
             if ($clienteId > 0 && $clienteName !== '') {
+                // OJO: en BD seguís guardando "Precio" como unitario
+                // y "Total" como cantidad * precio unitario.
+                // Si querés que refleje la escala FLEX, habría que adaptar esto también.
                 $id_quote = $this->insert_quote(
                     $clienteId,
                     $clienteName,
                     $price[0]['Titulo'],
-                    $price_label,
+                    $price_unit_label,   // precio unitario
                     $citydestination,
                     $this->length,
                     $this->width,
@@ -252,6 +385,9 @@ class Rates extends conexion
             }
         }
 
+        // ==========================
+        // 5) Respuesta JSON
+        // ==========================
         $respuesta = $_resp->response;
         $respuesta['result'] = [
             'Id'              => $id_quote,
@@ -259,18 +395,21 @@ class Rates extends conexion
             'Fecha_Entrega'   => $send_date,
             'Localidad'       => $citydestination,
             'Distancia'       => $distance_label,
-            'Cantidad'        => $this->cantidad,
+            'Cantidad'        => $cant,
             'Valor_Declarado' => $valorDec,
             'Titulo'          => $price[0]['Titulo'],
-            'Tarifa'          => $price_label,
+
+            // devolvemos ambas cosas para transparencia
+            'TarifaUnitario'  => $price_unit_label, // precio base 1 FLEX
+            'Tarifa'          => $tarifa_label,     // tarifa total con regla FLEX o normal
             'Seguro'          => (int)round($surePrice),
             'Total'           => $total_label,
+
             'Codigo'          => $codigo,
         ];
 
         return [200, $respuesta];
     }
-
     /* ===== Helpers basados en tu lógica ===== */
 
     private function isErrorPrecio($resp): bool
