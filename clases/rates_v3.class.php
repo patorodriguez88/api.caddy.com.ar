@@ -22,6 +22,9 @@
 ini_set('display_errors', '1');
 error_reporting(E_ALL);
 
+// 👇 Esto achica los decimales al serializar JSON
+ini_set('serialize_precision', 6);
+ini_set('precision', 14);
 require_once "conexion/conexion.php";
 require_once "token.class.php";
 require_once "respuestas.class.php";
