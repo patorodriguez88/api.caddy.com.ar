@@ -287,7 +287,7 @@ class Rates extends conexion
         // ==========================
         if ($valorDec <= 0 || $valorDec <= $this->valorDeclaradoMinimo) {
             $valorDec  = $this->valorDeclaradoMinimo;
-            $surePrice = 0.0;
+            // $surePrice = 0.0;
         } else {
             $valorDec  = (float)round($valorDec);
             $surePrice = $valorDec * $sure_porc / 100.0;
