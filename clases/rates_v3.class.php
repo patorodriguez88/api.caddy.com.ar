@@ -340,7 +340,9 @@ class Rates extends conexion
     public function get_nombre_dia(string $fecha): string
     {
         $fechats = strtotime($fecha);
-        return match (date('w', $fechats)) {
+        $diaNum  = (int)date('w', $fechats); // 👈 casteamos a int
+
+        return match ($diaNum) {
             0 => 'Domingo',
             1 => 'Lunes',
             2 => 'Martes',
