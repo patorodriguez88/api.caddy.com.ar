@@ -98,10 +98,10 @@ class Rates extends conexion
             $this->servicio = 1; // por defecto
         }
 
-        if ($this->servicio === 1) {
-            $this->servicio_label = 'Retiro y Entrega';
-        } elseif ($this->servicio === 3) {
+        if ($this->flex === 1 && $this->cp >= '5000' && $this->cp <= '5023') {
             $this->servicio_label = 'Retiro y Entrega (Flex)';
+        } elseif ($this->servicio === 1) {
+            $this->servicio_label = 'Retiro y Entrega';
         } else {
             $this->servicio_label = 'Solo Entrega';
         }
@@ -117,7 +117,8 @@ class Rates extends conexion
         }
         $this->valorDeclaradoMinimo = (int)$seguroMin[0]['Valor'];
 
-        $esFlex = ($this->servicio === 3) || ($this->flex === 1);
+        // Después de setear $this->flex
+        $esFlex = ($this->flex === 1);  // SOLO flag flex, sin mirar 'servicio'
 
         // Normalización de CP capital
         $cpEval = $this->cp;
@@ -126,13 +127,13 @@ class Rates extends conexion
         }
 
         /* ==========================
-         * 5) FLEX en capital -> tarifa fija
-         * ========================== */
+         * 5) FLEX en capital -> tarifa fija con regla especial
+        * ========================== */
+        $esFlex = ($this->flex === 1);  // 👈 acá
         if ($esFlex && ($this->cp >= '5000' && $this->cp <= '5023')) {
 
             $precio = $this->rate_flex();
 
-            // Si rate_flex devuelve 4 o un array inválido → error
             if ($precio === 4 || $this->isErrorPrecio($precio)) {
                 return [
                     400,
@@ -296,8 +297,7 @@ class Rates extends conexion
         $distance_label = ($km === 500) ? 'Más de 50 km.' : ('Hasta ' . $km . ' km.');
 
         $precioVenta = (float)$price[0]['PrecioVenta']; // tarifa base (1 envío)
-        $esFlex      = ($this->servicio === 3) || ($this->flex === 1);
-
+        $esFlex = ($this->flex === 1 && $esCapital);
         // ==========================
         // 2) Tarifa logística total
         //    - FLEX en Capital:
@@ -309,13 +309,14 @@ class Rates extends conexion
         $cant = max(1, (int)$this->cantidad);
         $tarifaTotal = 0.0;
 
-        if ($esFlex && $esCapital) {
-            // 1º al 100%
+        if ($esFlex) {
+            // FLEX en Capital:
+            // 1º: 100% de la tarifa
             if ($cant >= 1) {
                 $tarifaTotal += $precioVenta;
             }
-            // 2º bonificado (nada que sumar)
-            // 3º en adelante al 50%
+            // 2º: bonificado
+            // 3º en adelante: 50% cada uno
             if ($cant >= 3) {
                 $tarifaTotal += ($cant - 2) * ($precioVenta * 0.5);
             }
@@ -400,7 +401,7 @@ class Rates extends conexion
             'Titulo'          => $price[0]['Titulo'],
 
             // devolvemos ambas cosas para transparencia
-            'TarifaUnitario'  => $price_unit_label, // precio base 1 FLEX
+            // 'TarifaUnitario'  => $price_unit_label, // precio base 1 FLEX
             'Tarifa'          => $tarifa_label,     // tarifa total con regla FLEX o normal
             'Seguro'          => (int)round($surePrice),
             'Total'           => $total_label,
@@ -447,7 +448,9 @@ class Rates extends conexion
     public function get_nombre_dia(string $fecha): string
     {
         $fechats = strtotime($fecha);
-        return match (date('w', $fechats)) {
+        $diaNum  = (int)date('w', $fechats); // 👈 casteo a int
+
+        return match ($diaNum) {
             0 => 'Domingo',
             1 => 'Lunes',
             2 => 'Martes',
@@ -458,7 +461,6 @@ class Rates extends conexion
             default => 'Desconocido',
         };
     }
-
     public function calc_dim($length, $width, $height, $weight)
     {
         if ($length !== '' && $width !== '' && $height !== '') {
