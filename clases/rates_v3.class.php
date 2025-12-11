@@ -526,6 +526,10 @@ class Rates extends conexion
 
             // volumen m3
             $volumen = $this->calc_dim($l, $w, $h, $peso);
+            // formateos lindos para la API
+            $volumen_fmt = round($volumen, 4);  // ej: 0.0840
+            $peso_fmt    = round($peso, 3);     // ej: 3.200
+
             if ($volumen <= 0 || $peso <= 0) {
                 return [400, $_resp->error_400('Datos incompletos en bulto ' . ($idx + 1))];
             }
@@ -582,13 +586,13 @@ class Rates extends conexion
                 }
             }
 
-            $envios[] = [
+            $bultos[] = [
                 'Indice'          => $idx + 1,
                 'Id'              => $id_quote,
                 'Titulo'          => $row['Titulo'] ?? '',
                 'Codigo'          => $row['Codigo'] ?? $codigoGeneral,
-                'Volumen_m3'      => $volumen,
-                'Peso'            => $peso,
+                'Volumen_m3'      => $volumen_fmt,
+                'Peso'            => $peso_fmt,
                 'Valor_Declarado' => (int)round($valorDec),
                 'Tarifa'          => (int)round($tarifa),
                 'Seguro'          => (int)round($seguro),
@@ -606,8 +610,8 @@ class Rates extends conexion
             'Fecha_Entrega' => $send_date,
             'Localidad'     => $citydestination,
             'Distancia'     => $distance_label,
-            'Cantidad'      => count($envios),
-            'Envios'        => $envios,
+            'Cantidad'      => count($bultos),
+            'Bultos'        => $bultos,
             'Totales'       => [
                 'Valor_Declarado_Total' => (int)round($totalValorDec),
                 'Tarifa_Total'          => (int)round($totalTarifa),
