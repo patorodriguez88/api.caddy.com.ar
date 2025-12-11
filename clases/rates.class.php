@@ -424,12 +424,6 @@ class Rates extends conexion
             'Total'           => $total_label,
 
             'Codigo'          => $codigo,
-            'Debug' => [
-                'SeguroPorc' => $sure_porc,
-                'ValorDec'   => $valorDec,
-                'MinSeguro'  => $this->valorDeclaradoMinimo,
-                'SureRaw'    => $surePrice
-            ],
         ];
 
         return [200, $respuesta];
