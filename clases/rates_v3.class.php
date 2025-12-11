@@ -621,9 +621,9 @@ class Rates extends conexion
             'Cantidad'      => count($bultosOut),
             'Bultos'        => $bultosOut,
             'Totales'       => [
-                'Valor_Declarado_Total' => (int)round($totalValorDec),
-                'Tarifa_Total'          => (int)round($totalTarifa),
-                'Seguro_Total'          => (int)round($totalSeguro),
+                'Valor_Declarado' => (int)round($totalValorDec),
+                'Tarifa'          => (int)round($totalTarifa),
+                'Seguro'          => (int)round($totalSeguro),
                 'Total'                 => (int)round($totalTarifa + $totalSeguro),
             ],
         ];
