@@ -1,6 +1,4 @@
 <?php
-ini_set('display_errors', '1');
-error_reporting(E_ALL);
 
 require_once "conexion/conexion.php";
 require_once "token.class.php";
@@ -182,98 +180,6 @@ class Rates extends conexion
     /**
      * Arma respuesta exitosa y registra en Cotizaciones
      */
-    // private function armarRespuestaOk(array $price, array $tokenInfo, bool $esCapital): array
-    // {
-    //     $_resp = new respuestas();
-
-    //     $sure_porc = isset($price[0]['Seguro']) ? (float)$price[0]['Seguro'] : 0.0;
-    //     $valorDec  = $this->valorDeclarado;
-    //     $surePrice = 0.0;
-
-    //     if ($valorDec <= 0 || $valorDec <= $this->valorDeclaradoMinimo) {
-    //         $valorDec  = $this->valorDeclaradoMinimo;
-    //         $surePrice = 0.0;
-    //     } else {
-    //         $valorDec  = (float)round($valorDec);
-    //         $surePrice = $valorDec * $sure_porc / 100.0;
-    //     }
-
-    //     $km = (int)round($price[0]['Kilometros']);
-    //     $distance_label = ($km === 500) ? 'Más de 50 km.' : ('Hasta ' . $km . ' km.');
-
-    //     $precioVenta = (float)$price[0]['PrecioVenta'];
-    //     $total       = ($this->cantidad * $precioVenta) + $surePrice;
-
-    //     // Labels redondeados (siempre)
-    //     $price_label = (int)round($precioVenta);
-    //     $total_label = (int)round($total);
-
-    //     if ($esCapital) {
-    //         $citydestination = 'Cordoba Capital';
-    //         $hora  = (int)date('G');
-    //         $fecha = ($hora > 11) ? date('Y-m-d', strtotime('+1 day')) : date('Y-m-d');
-    //         $send_date = $this->get_nombre_dia($fecha);
-    //         $codigo    = $price[0]['Codigo'] ?? '';
-    //     } else {
-    //         $dateRow   = $this->date_send($this->cp);
-    //         $send_date = $dateRow[0]['DiaSalida'] ?? $this->get_nombre_dia(date('Y-m-d'));
-    //         $codigo    = $dateRow[0]['Codigo'] ?? ($price[0]['Codigo'] ?? '');
-    //         $citydestination = $this->localidad;
-    //         if ($citydestination === '' && isset($dateRow[0]['Localidad'])) {
-    //             $citydestination = $dateRow[0]['Localidad'];
-    //         }
-    //     }
-
-    //     // Cliente origen según UsuarioId del token
-    //     $usuarioId = (int)($tokenInfo['UsuarioId'] ?? 0);
-    //     $cliente   = $this->clienteOrigen($usuarioId);
-
-    //     // Por defecto: no insertamos nada
-    //     $id_quote = 0;
-
-    //     if ($cliente !== null) {
-    //         $clienteId   = (int)($cliente['id'] ?? 0);
-    //         $clienteName = (string)($cliente['nombrecliente'] ?? '');
-
-    //         // Solo insertamos si tenemos id y nombre
-    //         if ($clienteId > 0 && $clienteName !== '') {
-    //             $id_quote = $this->insert_quote(
-    //                 $clienteId,
-    //                 $clienteName,
-    //                 $price[0]['Titulo'],
-    //                 $price_label,
-    //                 $citydestination,
-    //                 $this->length,
-    //                 $this->width,
-    //                 $this->height,
-    //                 $this->weight,
-    //                 $km,
-    //                 $send_date
-    //             );
-    //         }
-    //     }
-
-    //     $respuesta = $_resp->response;
-    //     $respuesta['result'] = [
-    //         'Id'              => $id_quote,
-    //         'Servicio'        => $this->servicio_label,
-    //         'Fecha_Entrega'   => $send_date,
-    //         'Localidad'       => $citydestination,
-    //         'Distancia'       => $distance_label,
-    //         'Cantidad'        => $this->cantidad,
-    //         'Valor_Declarado' => $valorDec,
-    //         'Titulo'          => $price[0]['Titulo'],
-    //         'Tarifa'          => $price_label,
-    //         'Seguro'          => (int)round($surePrice),
-    //         'Total'           => $total_label,
-    //         'Codigo'          => $codigo,
-    //     ];
-
-    //     return [200, $respuesta];
-    // }
-    /**
-     * Arma respuesta exitosa y registra en Cotizaciones
-     */
     private function armarRespuestaOk(array $price, array $tokenInfo, bool $esCapital): array
     {
         $_resp = new respuestas();
@@ -282,16 +188,6 @@ class Rates extends conexion
         $valorDec  = $this->valorDeclarado;
         $surePrice = 0.0;
 
-        // ==========================
-        // 1) Seguro (igual que antes)
-        // ==========================
-        // if ($valorDec <= 0 || $valorDec <= $this->valorDeclaradoMinimo) {
-        //     $valorDec  = $this->valorDeclaradoMinimo;
-        //     // $surePrice = 0.0;
-        // } else {
-        //     $valorDec  = (float)round($valorDec);
-        //     $surePrice = $valorDec * $sure_porc / 100.0;
-        // }
         // ==========================
         // 1) Seguro SIEMPRE (incluso FLEX)
         // ==========================
@@ -418,7 +314,6 @@ class Rates extends conexion
             'Titulo'          => $price[0]['Titulo'],
 
             // devolvemos ambas cosas para transparencia
-            // 'TarifaUnitario'  => $price_unit_label, // precio base 1 FLEX
             'Tarifa'          => $tarifa_label,     // tarifa total con regla FLEX o normal
             'Seguro'          => (int)round($surePrice),
             'Total'           => $total_label,
