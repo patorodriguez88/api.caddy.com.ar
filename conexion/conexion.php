@@ -135,4 +135,8 @@ class conexion
 
         return $key;
     }
+    public function escapeString($str)
+    {
+        return $this->conexion->real_escape_string($str);
+    }
 }
