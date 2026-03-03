@@ -36,7 +36,6 @@ class auth extends conexion
                             $result["result"] = array(
                                 "Estado" => $verificar[0]['Estado'],
                                 "token" => $verificar[0]['Token'],
-                                "id" => 1
                             );
                             return $result;
                         } else {
