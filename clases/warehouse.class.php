@@ -340,6 +340,7 @@ class warehouse extends conexion
                              Wepoint_h='" . $this->escape($hora) . "',
                              Wepoint_status='" . $this->escape($status) . "'
                          WHERE Wepoint_c='" . $this->escape($wepoint_c) . "'
+                         AND Entregado=0
                          AND Eliminado=0
                          AND Devuelto=0
                          LIMIT 1";
