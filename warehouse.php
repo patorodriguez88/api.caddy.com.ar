@@ -1,10 +1,9 @@
 <?php
-// warehouse.php
-require_once 'clases/respuestas.class.php';
-require_once 'clases/warehouse.class.php';
+require_once __DIR__ . '/clases/respuestas.class.php';
+require_once __DIR__ . '/clases/warehouse.class.php';
 
 $_respuestas = new respuestas;
-$_warehouse  = new warehouse(); // (si querés, renombramos la clase a Warehouse después)
+$_warehouse  = new warehouse();
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -24,4 +23,4 @@ if ($_SERVER['REQUEST_METHOD'] === "POST") {
 }
 
 http_response_code(405);
-echo json_encode($_respuestas->error_405(), JSON_UNESCAPED_UNICODE);
+echo json_encode(["result" => ["error_id" => 405, "error_msg" => "Método no permitido"]], JSON_UNESCAPED_UNICODE);

@@ -1,50 +1,61 @@
 <?php
 // warehouse.class.php
-require_once "conexion/conexion.php";
-require_once "respuestas.class.php";
+
+require_once __DIR__ . "/conexion/conexion.php";
+require_once __DIR__ . "/respuestas.class.php";
+require_once __DIR__ . "/token.class.php";  // 👈 ESTE es el correcto
+
 date_default_timezone_set('America/Argentina/Cordoba');
 
 class warehouse extends conexion
 {
-
     private string $token = "";
+    private ?array $tokenData = null;
 
     public function post($json)
     {
         $_respuestas = new respuestas;
-        $datos = json_decode($json, true);
 
+        $datos = json_decode($json, true);
         if (!is_array($datos)) {
             return $_respuestas->error_400("JSON inválido");
         }
 
-        if (empty($datos['token'])) {
+        // 🔐 Token unificado (Authorization / X-Api-Token / query / post)
+        $token = Token::obtenerToken();
+
+        // fallback opcional (por si algún cliente viejo manda token en JSON)
+        if (!$token && !empty($datos['token'])) {
+            $token = trim((string)$datos['token']);
+        }
+
+        if (!$token) {
             return $_respuestas->error_401("Token no enviado");
         }
 
-        $this->token = (string)$datos['token'];
-        $arrayToken  = $this->buscarToken();
+        $this->token = $token;
 
-        if (!$arrayToken) {
+        // Validación centralizada
+        $valido = Token::validar($this->token, $this);
+        if (!$valido) {
             return $_respuestas->error_401("El Token que envió es inválido o ha caducado");
         }
+
+        $this->tokenData = $valido; // 👈 ahora podés usar UsuarioId / NdeCliente si querés
 
         if (empty($datos['status'])) {
             return $_respuestas->error_400("Falta el estado del movimiento");
         }
 
         $status = strtolower(trim((string)$datos['status']));
-
-        // Movimientos soportados
         $permitidos = ['inn', 'out', 'crossdock', 'send'];
+
         if (!in_array($status, $permitidos, true)) {
             return $_respuestas->error_400("El estado del movimiento no es correcto");
         }
 
-        // Ejecuta movimiento en batch
         $resp = $this->procesarMovimiento($status, $datos);
 
-        // Si procesarMovimiento devolvió un error de respuestas.class.php, lo pasamos tal cual
         if (is_array($resp) && isset($resp["result"]["error_id"])) {
             return $resp;
         }
