@@ -1,8 +1,5 @@
 <?php
 // warehouse.class.php
-ini_set('display_errors', '1');
-error_reporting(E_ALL);
-
 require_once __DIR__ . "/../conexion/conexion.php";
 require_once __DIR__ . "/respuestas.class.php";
 require_once __DIR__ . "/token.class.php";  // 👈 ESTE es el correcto
@@ -71,18 +68,6 @@ class warehouse extends conexion
             "data" => $resp
         ];
     }
-
-    // private function buscarToken()
-    // {
-    //     $query = "SELECT TokenId,UsuarioId,Estado
-    //               FROM usuarios_token
-    //               WHERE Token = '" . $this->escape($this->token) . "'
-    //               AND Estado = 'Activo'
-    //               LIMIT 1";
-
-    //     $resp = parent::obtenerDatos($query);
-    //     return $resp ? $resp : 0;
-    // }
 
     /**
      * Procesa batch: line_items[] + id_wp[] (cuando aplica)
