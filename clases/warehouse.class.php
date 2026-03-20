@@ -1,8 +1,7 @@
 <?php
-// warehouse.class.php
 require_once __DIR__ . "/../conexion/conexion.php";
 require_once __DIR__ . "/respuestas.class.php";
-require_once __DIR__ . "/token.class.php";  // 👈 ESTE es el correcto
+require_once __DIR__ . "/token.class.php";
 
 date_default_timezone_set('America/Argentina/Cordoba');
 
@@ -10,6 +9,34 @@ class warehouse extends conexion
 {
     private string $token = "";
     private ?array $tokenData = null;
+
+    private function autenticarRequest(?array $datos = null)
+    {
+        $_respuestas = new respuestas;
+
+        // Mantener lógica actual: X-Api-Token
+        $token = Token::obtenerToken();
+
+        // fallback opcional si algún cliente viejo lo manda en JSON
+        if (!$token && is_array($datos) && !empty($datos['token'])) {
+            $token = trim((string)$datos['token']);
+        }
+
+        if (!$token) {
+            return $_respuestas->error_401("Token no enviado");
+        }
+
+        $this->token = $token;
+
+        $valido = Token::validar($this->token, $this);
+        if (!$valido) {
+            return $_respuestas->error_401("El Token que envió es inválido o ha caducado");
+        }
+
+        $this->tokenData = $valido;
+
+        return true;
+    }
 
     public function post($json)
     {
@@ -20,27 +47,10 @@ class warehouse extends conexion
             return $_respuestas->error_400("JSON inválido");
         }
 
-        // 🔐 Token unificado (Authorization / X-Api-Token / query / post)
-        $token = Token::obtenerToken();
-
-        // fallback opcional (por si algún cliente viejo manda token en JSON)
-        if (!$token && !empty($datos['token'])) {
-            $token = trim((string)$datos['token']);
+        $auth = $this->autenticarRequest($datos);
+        if ($auth !== true) {
+            return $auth;
         }
-
-        if (!$token) {
-            return $_respuestas->error_401("Token no enviado");
-        }
-
-        $this->token = $token;
-
-        // Validación centralizada
-        $valido = Token::validar($this->token, $this);
-        if (!$valido) {
-            return $_respuestas->error_401("El Token que envió es inválido o ha caducado");
-        }
-
-        $this->tokenData = $valido; // 👈 ahora podés usar UsuarioId / NdeCliente si querés
 
         if (empty($datos['status'])) {
             return $_respuestas->error_400("Falta el estado del movimiento");
@@ -69,10 +79,70 @@ class warehouse extends conexion
         ];
     }
 
-    /**
-     * Procesa batch: line_items[] + id_wp[] (cuando aplica)
-     * Devuelve resumen: insertados/duplicados/no_encontrados/errores/procesados
-     */
+    public function getColectasPorFecha($fecha)
+    {
+        $auth = $this->autenticarRequest();
+        if ($auth !== true) {
+            return $auth;
+        }
+
+        $fecha = trim((string)$fecha);
+
+        if ($fecha === '') {
+            $fecha = date('Y-m-d');
+        }
+
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            return [
+                "result" => [
+                    "error_id"  => 400,
+                    "error_msg" => "Formato de fecha inválido. Use YYYY-MM-DD"
+                ]
+            ];
+        }
+
+        $desde = $this->escape($fecha . ' 00:00:00');
+        $hasta = $this->escape(date('Y-m-d', strtotime($fecha . ' +1 day')) . ' 00:00:00');
+
+        $sql = "SELECT 
+                    TC.Recorrido,
+                    TC.idColecta,
+                    TC.CodigoSeguimiento
+                FROM TransClientes TC
+                INNER JOIN Colecta C 
+                    ON TC.idColecta = C.id
+                WHERE 
+                    TC.Entregado = 0
+                    AND TC.Devuelto = 0
+                    AND TC.Eliminado = 0
+                    AND C.Fecha >= '$desde'
+                    AND C.Fecha < '$hasta'
+                ORDER BY TC.Recorrido, TC.id ASC";
+
+        $colectas = parent::obtenerDatos($sql);
+
+        if (!is_array($colectas)) {
+            return [
+                "result" => [
+                    "error_id"  => 500,
+                    "error_msg" => "Error al consultar colectas"
+                ]
+            ];
+        }
+
+        return [
+            "result" => [
+                "error_id"  => 0,
+                "error_msg" => "OK",
+                "fecha"     => $fecha,
+                "total"     => count($colectas),
+                "usuario"   => $this->tokenData['UsuarioId'] ?? null,
+                "cliente"   => $this->tokenData['NdeCliente'] ?? null,
+                "colectas"  => $colectas
+            ]
+        ];
+    }
+
     private function procesarMovimiento(string $status, array $datos)
     {
         $_respuestas = new respuestas;
@@ -87,7 +157,6 @@ class warehouse extends conexion
             return $_respuestas->error_400("line_items vacío");
         }
 
-        // id_wp es obligatorio para inn/out/crossdock; para send podría ser opcional, pero lo mantenemos consistente
         if (!is_array($id_wp) || count($id_wp) !== count($codigos)) {
             return $_respuestas->error_400("id_wp debe tener la misma cantidad de elementos que line_items");
         }
@@ -97,7 +166,6 @@ class warehouse extends conexion
         $oc = (int)($datos['oc'] ?? 0);
 
         if ($so <= 0 || $oc <= 0) {
-            // en tu lógica son claves para el control de duplicado
             return $_respuestas->error_400("Faltan datos obligatorios: so/oc");
         }
 
@@ -106,7 +174,7 @@ class warehouse extends conexion
             "insertados"     => 0,
             "duplicados"     => 0,
             "no_encontrados" => [],
-            "errores"        => [] // ["codigo" => "...", "error" => "..."]
+            "errores"        => []
         ];
 
         for ($i = 0; $i < count($codigos); $i++) {
@@ -122,7 +190,6 @@ class warehouse extends conexion
                 continue;
             }
 
-            // 1) Buscar en TransClientes por Wepoint_c
             $query_tc = "SELECT Recorrido, CodigoSeguimiento
                          FROM TransClientes
                          WHERE Wepoint_c='" . $this->escape($new_codigo) . "'
@@ -142,7 +209,6 @@ class warehouse extends conexion
             $Recorrido = $recorrido[0]['Recorrido'] ?? '';
             $CodigoSeguimientoCaddy = $recorrido[0]['CodigoSeguimiento'] ?? '';
 
-            // 2) Acción por status
             try {
 
                 if ($status === 'inn') {
@@ -198,7 +264,6 @@ class warehouse extends conexion
                 }
 
                 if ($status === 'crossdock') {
-                    // crossdock: marca Ingreso+Egreso+Crossdock en tu tabla wepoint
                     $ok = $this->registrarCrossdock([
                         "new_codigo" => $new_codigo,
                         "pr" => $pr,
@@ -222,12 +287,11 @@ class warehouse extends conexion
                 }
 
                 if ($status === 'send') {
-                    // tu lógica original: solo update a TransClientes
                     $updated = $this->updateTransClientesWepointStatus($new_codigo, "Enviado");
                     if (!$updated) {
                         $resultado["errores"][] = ["codigo" => $new_codigo, "error" => "No se pudo actualizar status SEND"];
                     } else {
-                        $resultado["insertados"]++; // acá lo contamos como “hecho”
+                        $resultado["insertados"]++;
                     }
                 }
             } catch (\Throwable $e) {
@@ -238,16 +302,8 @@ class warehouse extends conexion
         return $resultado;
     }
 
-    /**
-     * Inserta un movimiento simple (Ingreso o Egreso) con control de duplicado.
-     * Devuelve:
-     * - true si insertó
-     * - "DUP" si ya existía
-     * - false si falló
-     */
     private function registrarMovimientoWepoint(array $p)
     {
-        // Control duplicado
         $query_control = "SELECT id
                           FROM wepoint
                           WHERE " . $p["flagCol"] . "='" . (int)$p["flagVal"] . "'
@@ -276,9 +332,6 @@ class warehouse extends conexion
         return $id ? true : false;
     }
 
-    /**
-     * Inserta Crossdock (Ingreso=1, Crossdock=1, Egreso=1) con control de duplicado por Crossdock.
-     */
     private function registrarCrossdock(array $p)
     {
         $query_control = "SELECT id
@@ -311,10 +364,6 @@ class warehouse extends conexion
         return $id ? true : false;
     }
 
-    /**
-     * Actualiza TransClientes con fecha/hora/status (por Wepoint_c)
-     * Devuelve true/false según affected_rows > 0 (o sea que hubo update real)
-     */
     private function updateTransClientesWepointStatus(string $wepoint_c, string $status): bool
     {
         $fecha = date('Y-m-d');
@@ -334,103 +383,8 @@ class warehouse extends conexion
         return $aff > 0;
     }
 
-    /**
-     * Escape mínimo para evitar romper SQL por comillas.
-     * (No es “seguridad total” como prepared statements, pero evita bugs por strings con comillas)
-     */
     private function escape(string $s): string
     {
         return parent::escapeString($s);
-    }
-    public function getColectasPorFecha($fecha)
-    {
-        global $mysqli;
-
-        if (!isset($mysqli) || !$mysqli) {
-            return [
-                "result" => [
-                    "error_id"  => 500,
-                    "error_msg" => "No hay conexión a la base de datos"
-                ]
-            ];
-        }
-
-        $fecha = trim($fecha);
-
-        if ($fecha == '') {
-            $fecha = date('Y-m-d');
-        }
-
-        // validar formato YYYY-MM-DD
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
-            return [
-                "result" => [
-                    "error_id"  => 400,
-                    "error_msg" => "Formato de fecha inválido. Use YYYY-MM-DD"
-                ]
-            ];
-        }
-
-        $desde = $fecha . ' 00:00:00';
-        $hasta = date('Y-m-d', strtotime($fecha . ' +1 day')) . ' 00:00:00';
-
-        $sql = "SELECT 
-                TC.Recorrido,
-                TC.idColecta,
-                TC.CodigoSeguimiento
-            FROM TransClientes TC
-            INNER JOIN Colecta C 
-                ON TC.idColecta = C.id
-            WHERE 
-                TC.Entregado = 0
-                AND TC.Devuelto = 0
-                AND TC.Eliminado = 0
-                AND C.Fecha >= ?
-                AND C.Fecha < ?
-            ORDER BY TC.Recorrido, TC.id ASC";
-
-        $stmt = $mysqli->prepare($sql);
-
-        if (!$stmt) {
-            return [
-                "result" => [
-                    "error_id"  => 500,
-                    "error_msg" => "Error al preparar la consulta SQL",
-                    "detalle"   => $mysqli->error
-                ]
-            ];
-        }
-
-        $stmt->bind_param("ss", $desde, $hasta);
-
-        if (!$stmt->execute()) {
-            $stmt->close();
-
-            return [
-                "result" => [
-                    "error_id"  => 500,
-                    "error_msg" => "Error al ejecutar la consulta SQL"
-                ]
-            ];
-        }
-
-        $resultado = $stmt->get_result();
-        $colectas  = [];
-
-        while ($row = $resultado->fetch_assoc()) {
-            $colectas[] = $row;
-        }
-
-        $stmt->close();
-
-        return [
-            "result" => [
-                "error_id"      => 0,
-                "error_msg"     => "OK",
-                "fecha"         => $fecha,
-                "total"         => count($colectas),
-                "colectas"      => $colectas
-            ]
-        ];
     }
 }
