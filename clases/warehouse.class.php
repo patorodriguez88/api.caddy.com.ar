@@ -119,7 +119,37 @@ class warehouse extends conexion
                     AND C.Fecha < '$hasta'
                 ORDER BY TC.Recorrido, TC.id ASC";
 
-        $colectas = parent::obtenerDatos($sql);
+        $rows = parent::obtenerDatos($sql);
+
+        if (!is_array($rows)) {
+            return [
+                "result" => [
+                    "error_id"  => 500,
+                    "error_msg" => "Error al consultar colectas"
+                ]
+            ];
+        }
+
+        // 🔥 AGRUPACIÓN
+        $agrupado = [];
+
+        foreach ($rows as $row) {
+
+            $key = $row['idColecta']; // clave de agrupación
+
+            if (!isset($agrupado[$key])) {
+                $agrupado[$key] = [
+                    "Recorrido" => $row['Recorrido'],
+                    "idColecta" => $row['idColecta'],
+                    "codigos"   => []
+                ];
+            }
+
+            $agrupado[$key]["codigos"][] = $row['CodigoSeguimiento'];
+        }
+
+        // reindexar array
+        $colectas = array_values($agrupado);
 
         if (!is_array($colectas)) {
             return [
