@@ -342,4 +342,95 @@ class warehouse extends conexion
     {
         return parent::escapeString($s);
     }
+    public function getColectasPorFecha($fecha)
+    {
+        global $mysqli;
+
+        if (!isset($mysqli) || !$mysqli) {
+            return [
+                "result" => [
+                    "error_id"  => 500,
+                    "error_msg" => "No hay conexión a la base de datos"
+                ]
+            ];
+        }
+
+        $fecha = trim($fecha);
+
+        if ($fecha == '') {
+            $fecha = date('Y-m-d');
+        }
+
+        // validar formato YYYY-MM-DD
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            return [
+                "result" => [
+                    "error_id"  => 400,
+                    "error_msg" => "Formato de fecha inválido. Use YYYY-MM-DD"
+                ]
+            ];
+        }
+
+        $desde = $fecha . ' 00:00:00';
+        $hasta = date('Y-m-d', strtotime($fecha . ' +1 day')) . ' 00:00:00';
+
+        $sql = "SELECT 
+                TC.Recorrido,
+                TC.idColecta,
+                TC.CodigoSeguimiento
+            FROM TransClientes TC
+            INNER JOIN Colecta C 
+                ON TC.idColecta = C.id
+            WHERE 
+                TC.Entregado = 0
+                AND TC.Devuelto = 0
+                AND TC.Eliminado = 0
+                AND C.Fecha >= ?
+                AND C.Fecha < ?
+            ORDER BY TC.Recorrido, TC.id ASC";
+
+        $stmt = $mysqli->prepare($sql);
+
+        if (!$stmt) {
+            return [
+                "result" => [
+                    "error_id"  => 500,
+                    "error_msg" => "Error al preparar la consulta SQL",
+                    "detalle"   => $mysqli->error
+                ]
+            ];
+        }
+
+        $stmt->bind_param("ss", $desde, $hasta);
+
+        if (!$stmt->execute()) {
+            $stmt->close();
+
+            return [
+                "result" => [
+                    "error_id"  => 500,
+                    "error_msg" => "Error al ejecutar la consulta SQL"
+                ]
+            ];
+        }
+
+        $resultado = $stmt->get_result();
+        $colectas  = [];
+
+        while ($row = $resultado->fetch_assoc()) {
+            $colectas[] = $row;
+        }
+
+        $stmt->close();
+
+        return [
+            "result" => [
+                "error_id"      => 0,
+                "error_msg"     => "OK",
+                "fecha"         => $fecha,
+                "total"         => count($colectas),
+                "colectas"      => $colectas
+            ]
+        ];
+    }
 }
