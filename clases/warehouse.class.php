@@ -105,6 +105,7 @@ class warehouse extends conexion
         $hasta = $this->escape(date('Y-m-d', strtotime($fecha . ' +1 day')) . ' 00:00:00');
 
         $sql = "SELECT 
+                    TC.RazonSocial,
                     TC.Recorrido,
                     TC.idColecta,
                     TC.CodigoSeguimiento,
@@ -140,6 +141,7 @@ class warehouse extends conexion
 
             if (!isset($agrupado[$key])) {
                 $agrupado[$key] = [
+                    "Origen"    => $row['RazonSocial'],
                     "Recorrido" => $row['Recorrido'],
                     "idColecta" => $row['idColecta'],
                     "codigos"   => []
