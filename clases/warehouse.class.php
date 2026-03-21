@@ -107,7 +107,8 @@ class warehouse extends conexion
         $sql = "SELECT 
                     TC.Recorrido,
                     TC.idColecta,
-                    TC.CodigoSeguimiento
+                    TC.CodigoSeguimiento,
+                    TC.Wepoint_c as CodigoProveedor
                 FROM TransClientes TC
                 INNER JOIN Colecta C 
                     ON TC.idColecta = C.id
@@ -145,7 +146,10 @@ class warehouse extends conexion
                 ];
             }
 
-            $agrupado[$key]["codigos"][] = $row['CodigoSeguimiento'];
+            $agrupado[$key]["codigos"][] = [
+                "CodigoSeguimiento" => $row['CodigoSeguimiento'],
+                "CodigoProveedor"   => $row['CodigoProveedor']
+            ];
         }
 
         // reindexar array
