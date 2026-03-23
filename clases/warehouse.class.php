@@ -109,7 +109,7 @@ class warehouse extends conexion
                     TC.Recorrido,
                     TC.idColecta,
                     TC.CodigoSeguimiento,
-                    TC.Wepoint_c as CodigoProveedor
+                    TC.Wepoint_c as CodigoProveedor,
                     TC.Cantidad
                 FROM TransClientes TC
                 INNER JOIN Colecta C 
