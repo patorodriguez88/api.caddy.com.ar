@@ -105,20 +105,20 @@ class warehouse extends conexion
         $hasta = $this->escape(date('Y-m-d', strtotime($fecha . ' +1 day')) . ' 00:00:00');
 
         $sql = "SELECT 
-                    TC.RazonSocial,
-                    TC.Recorrido,
-                    TC.idColecta,
-                    TC.CodigoSeguimiento,
-                    TC.Wepoint_c as CodigoProveedor,
-                    TC.Cantidad
-                FROM TransClientes TC
-                INNER JOIN Colecta C 
-                    ON TC.idColecta = C.id
-                WHERE                     
-                     TC.Eliminado = 0
-                    AND C.Fecha >= '$desde'
-                    AND C.Fecha < '$hasta'
-                ORDER BY TC.Recorrido, TC.id ASC";
+                TC.RazonSocial,
+                TC.Recorrido,
+                TC.idColecta,
+                TC.CodigoSeguimiento,
+                TC.Wepoint_c as CodigoProveedor,
+                TC.Cantidad
+            FROM TransClientes TC
+            INNER JOIN Colecta C 
+                ON TC.idColecta = C.id
+            WHERE
+                TC.Eliminado = 0
+                AND C.Fecha >= '$desde'
+                AND C.Fecha < '$hasta'
+            ORDER BY TC.Recorrido, TC.id ASC";
 
         $rows = parent::obtenerDatos($sql);
 
@@ -131,12 +131,10 @@ class warehouse extends conexion
             ];
         }
 
-        // 🔥 AGRUPACIÓN
         $agrupado = [];
 
         foreach ($rows as $row) {
-
-            $key = $row['idColecta']; // clave de agrupación
+            $key = $row['Recorrido'] . '_' . $row['idColecta'];
 
             if (!isset($agrupado[$key])) {
                 $agrupado[$key] = [
@@ -149,33 +147,13 @@ class warehouse extends conexion
 
             $agrupado[$key]["codigos"][] = [
                 "CodigoSeguimiento" => $row['CodigoSeguimiento'],
-                "CodigoProveedor"   => $row['CodigoProveedor']
+                "CodigoProveedor"   => trim((string)$row['CodigoProveedor']),
+                "Cantidad"          => isset($row['Cantidad']) ? (int)$row['Cantidad'] : 1
             ];
         }
 
-        // reindexar array
         $colectas = array_values($agrupado);
 
-        if (!is_array($colectas)) {
-            return [
-                "result" => [
-                    "error_id"  => 500,
-                    "error_msg" => "Error al consultar colectas"
-                ]
-            ];
-        }
-        return [
-            "result" => [
-                "error_id"  => 0,
-                "error_msg" => "DEBUG",
-                "fecha"     => $fecha,
-                "sql"       => $sql,
-                "rows_raw"  => $rows,
-                "total_raw" => is_array($rows) ? count($rows) : -1,
-                "usuario"   => $this->tokenData['UsuarioId'] ?? null,
-                "cliente"   => $this->tokenData['NdeCliente'] ?? null
-            ]
-        ];
         return [
             "result" => [
                 "error_id"  => 0,
