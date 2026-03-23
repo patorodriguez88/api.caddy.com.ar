@@ -113,9 +113,7 @@ class warehouse extends conexion
                 FROM TransClientes TC
                 INNER JOIN Colecta C 
                     ON TC.idColecta = C.id
-                WHERE 
-                    TC.Entregado = 0
-                    AND TC.Devuelto = 0
+                WHERE                     
                     AND TC.Eliminado = 0
                     AND C.Fecha >= '$desde'
                     AND C.Fecha < '$hasta'
