@@ -114,7 +114,7 @@ class warehouse extends conexion
                 INNER JOIN Colecta C 
                     ON TC.idColecta = C.id
                 WHERE                     
-                    AND TC.Eliminado = 0
+                     TC.Eliminado = 0
                     AND C.Fecha >= '$desde'
                     AND C.Fecha < '$hasta'
                 ORDER BY TC.Recorrido, TC.id ASC";
