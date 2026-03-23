@@ -105,6 +105,7 @@ class warehouse extends conexion
         $hasta = $this->escape(date('Y-m-d', strtotime($fecha . ' +1 day')) . ' 00:00:00');
 
         $sql = "SELECT 
+                TC.id,
                 TC.RazonSocial,
                 C.Recorrido,
                 TC.idColecta,
@@ -137,6 +138,7 @@ class warehouse extends conexion
             $codigoSeguimiento = trim((string)$row['CodigoSeguimiento']);
             $codigoProveedor   = trim((string)$row['CodigoProveedor']);
             $cantidad          = isset($row['Cantidad']) ? (int)$row['Cantidad'] : 1;
+            $id                = isset($row['id']) ? (int)$row['id'] : null;
 
             // Filtrar código padre / cabecera de colecta
             if ($codigoSeguimiento !== '' && $codigoSeguimiento === $codigoProveedor && $cantidad > 1) {
@@ -155,6 +157,7 @@ class warehouse extends conexion
             }
 
             $agrupado[$key]["codigos"][] = [
+                "idCaddy"   => $id,
                 "CodigoSeguimiento" => $codigoSeguimiento,
                 "CodigoProveedor"   => $codigoProveedor,
                 "Cantidad"          => $cantidad
@@ -187,8 +190,9 @@ class warehouse extends conexion
         $Fecha = date('Y-m-d H:i:s');
         $Fecha_alone = date('Y-m-d');
 
-        $codigos = $datos['line_items'] ?? [];
-        $id_wp   = $datos['id_wp'] ?? [];
+        $id_caddy = $datos['id_caddy'] ?? [];
+        $codigos  = $datos['line_items'] ?? [];
+        $id_wp    = $datos['id_wp'] ?? [];
 
         if (!is_array($codigos) || count($codigos) === 0) {
             return $_respuestas->error_400("line_items vacío");
@@ -198,13 +202,13 @@ class warehouse extends conexion
             return $_respuestas->error_400("id_wp debe tener la misma cantidad de elementos que line_items");
         }
 
+        if (!is_array($id_caddy)) {
+            $id_caddy = [];
+        }
+
         $pr = (int)($datos['pr'] ?? 0);
         $so = (int)($datos['so'] ?? 0);
         $oc = (int)($datos['oc'] ?? 0);
-
-        // if ($so <= 0 || $oc <= 0) {
-        //     return $_respuestas->error_400("Faltan datos obligatorios: so/oc");
-        // }
 
         $resultado = [
             "procesados"     => 0,
@@ -221,13 +225,24 @@ class warehouse extends conexion
             $raw = (string)$codigos[$i];
             $new_codigos = explode('_', $raw);
             $new_codigo  = trim((string)$new_codigos[0]);
+            $idCaddyActual = isset($id_caddy[$i]) ? (int)$id_caddy[$i] : 0;
 
-            if ($new_codigo === '') {
+            if ($new_codigo === '' && $idCaddyActual <= 0) {
                 $resultado["errores"][] = ["codigo" => $raw, "error" => "Código vacío"];
                 continue;
             }
 
-            $query_tc = "SELECT Recorrido, CodigoSeguimiento
+            if ($idCaddyActual > 0) {
+                $query_tc = "SELECT id, Recorrido, CodigoSeguimiento, Wepoint_c
+                         FROM TransClientes
+                         WHERE id='" . $idCaddyActual . "'
+                         AND Eliminado=0
+                         AND Entregado=0
+                         AND Devuelto=0
+                         AND Haber=0
+                         LIMIT 1";
+            } else {
+                $query_tc = "SELECT id, Recorrido, CodigoSeguimiento, Wepoint_c
                          FROM TransClientes
                          WHERE Wepoint_c='" . $this->escape($new_codigo) . "'
                          AND Eliminado=0
@@ -235,14 +250,16 @@ class warehouse extends conexion
                          AND Devuelto=0
                          AND Haber=0
                          LIMIT 1";
+            }
 
             $recorrido = parent::obtenerDatos($query_tc);
 
             if (!$recorrido || empty($recorrido[0])) {
-                $resultado["no_encontrados"][] = $new_codigo;
+                $resultado["no_encontrados"][] = $idCaddyActual > 0 ? $idCaddyActual : $new_codigo;
                 continue;
             }
 
+            $CodigoProveedorReal = $recorrido[0]['Wepoint_c'] ?? $new_codigo;
             $Recorrido = $recorrido[0]['Recorrido'] ?? '';
             $CodigoSeguimientoCaddy = $recorrido[0]['CodigoSeguimiento'] ?? '';
 
@@ -253,7 +270,7 @@ class warehouse extends conexion
                         "tipo" => "Ingreso",
                         "flagCol" => "Ingreso",
                         "flagVal" => 1,
-                        "new_codigo" => $new_codigo,
+                        "new_codigo" => $CodigoProveedorReal,
                         "pr" => $pr,
                         "so" => $so,
                         "oc" => $oc,
@@ -268,9 +285,12 @@ class warehouse extends conexion
                         $resultado["duplicados"]++;
                     } elseif ($ok === true) {
                         $resultado["insertados"]++;
-                        $this->updateTransClientesWepointStatus($new_codigo, "Ingreso");
+                        $this->updateTransClientesWepointStatus($CodigoProveedorReal, "Ingreso");
                     } else {
-                        $resultado["errores"][] = ["codigo" => $new_codigo, "error" => "No se pudo insertar INN"];
+                        $resultado["errores"][] = [
+                            "codigo" => $idCaddyActual > 0 ? $idCaddyActual : $CodigoProveedorReal,
+                            "error" => "No se pudo insertar INN"
+                        ];
                     }
                 }
 
@@ -279,7 +299,7 @@ class warehouse extends conexion
                         "tipo" => "Egreso",
                         "flagCol" => "Egreso",
                         "flagVal" => 1,
-                        "new_codigo" => $new_codigo,
+                        "new_codigo" => $CodigoProveedorReal,
                         "pr" => $pr,
                         "so" => $so,
                         "oc" => $oc,
@@ -294,15 +314,18 @@ class warehouse extends conexion
                         $resultado["duplicados"]++;
                     } elseif ($ok === true) {
                         $resultado["insertados"]++;
-                        $this->updateTransClientesWepointStatus($new_codigo, "Egreso");
+                        $this->updateTransClientesWepointStatus($CodigoProveedorReal, "Egreso");
                     } else {
-                        $resultado["errores"][] = ["codigo" => $new_codigo, "error" => "No se pudo insertar OUT"];
+                        $resultado["errores"][] = [
+                            "codigo" => $idCaddyActual > 0 ? $idCaddyActual : $CodigoProveedorReal,
+                            "error" => "No se pudo insertar OUT"
+                        ];
                     }
                 }
 
                 if ($status === 'crossdock') {
                     $ok = $this->registrarCrossdock([
-                        "new_codigo" => $new_codigo,
+                        "new_codigo" => $CodigoProveedorReal,
                         "pr" => $pr,
                         "so" => $so,
                         "oc" => $oc,
@@ -317,28 +340,37 @@ class warehouse extends conexion
                         $resultado["duplicados"]++;
                     } elseif ($ok === true) {
                         $resultado["insertados"]++;
-                        $this->updateTransClientesWepointStatus($new_codigo, "Crossdock");
+                        $this->updateTransClientesWepointStatus($CodigoProveedorReal, "Crossdock");
                     } else {
-                        $resultado["errores"][] = ["codigo" => $new_codigo, "error" => "No se pudo insertar CROSSDOCK"];
+                        $resultado["errores"][] = [
+                            "codigo" => $idCaddyActual > 0 ? $idCaddyActual : $CodigoProveedorReal,
+                            "error" => "No se pudo insertar CROSSDOCK"
+                        ];
                     }
                 }
 
                 if ($status === 'send') {
-                    $updated = $this->updateTransClientesWepointStatus($new_codigo, "Enviado");
+                    $updated = $this->updateTransClientesWepointStatus($CodigoProveedorReal, "Enviado");
+
                     if (!$updated) {
-                        $resultado["errores"][] = ["codigo" => $new_codigo, "error" => "No se pudo actualizar status SEND"];
+                        $resultado["errores"][] = [
+                            "codigo" => $idCaddyActual > 0 ? $idCaddyActual : $CodigoProveedorReal,
+                            "error" => "No se pudo actualizar status SEND"
+                        ];
                     } else {
                         $resultado["insertados"]++;
                     }
                 }
             } catch (\Throwable $e) {
-                $resultado["errores"][] = ["codigo" => $new_codigo, "error" => $e->getMessage()];
+                $resultado["errores"][] = [
+                    "codigo" => $idCaddyActual > 0 ? $idCaddyActual : $CodigoProveedorReal,
+                    "error" => $e->getMessage()
+                ];
             }
         }
 
         return $resultado;
     }
-
     private function registrarMovimientoWepoint(array $p)
     {
         $query_control = "SELECT id
