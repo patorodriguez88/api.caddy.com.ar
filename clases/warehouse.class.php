@@ -111,7 +111,8 @@ class warehouse extends conexion
                 TC.idColecta,
                 TC.CodigoSeguimiento,
                 TC.Wepoint_c as CodigoProveedor,
-                TC.Cantidad
+                TC.Cantidad,
+                C.CodigoSeguimiento AS CodigoSeguimientoPadre
             FROM TransClientes TC
             INNER JOIN Colecta C 
                 ON TC.idColecta = C.id
@@ -139,9 +140,10 @@ class warehouse extends conexion
             $codigoProveedor   = trim((string)$row['CodigoProveedor']);
             $cantidad          = isset($row['Cantidad']) ? (int)$row['Cantidad'] : 1;
             $id                = isset($row['id']) ? (int)$row['id'] : null;
+            $codigoPadre       = trim((string)$row['CodigoSeguimientoPadre']);
 
-            // Filtrar código padre / cabecera de colecta
-            if ($codigoSeguimiento !== '' && $codigoSeguimiento === $codigoProveedor && $cantidad > 1) {
+            // Filtrar código padre real de la colecta
+            if ($codigoPadre !== '' && $codigoSeguimiento === $codigoPadre) {
                 continue;
             }
 
@@ -157,17 +159,19 @@ class warehouse extends conexion
             }
 
             $agrupado[$key]["codigos"][] = [
-                "idCaddy"   => $id,
+                "idCaddy"           => $id,
                 "CodigoSeguimiento" => $codigoSeguimiento,
                 "CodigoProveedor"   => $codigoProveedor,
                 "Cantidad"          => $cantidad
             ];
         }
+
         foreach ($agrupado as $k => $colecta) {
             if (empty($colecta['codigos'])) {
                 unset($agrupado[$k]);
             }
         }
+
         $colectas = array_values($agrupado);
 
         return [
@@ -182,6 +186,7 @@ class warehouse extends conexion
             ]
         ];
     }
+
 
     private function procesarMovimiento(string $status, array $datos)
     {
