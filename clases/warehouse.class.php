@@ -105,6 +105,7 @@ class warehouse extends conexion
         $hasta = $this->escape(date('Y-m-d', strtotime($fecha . ' +1 day')) . ' 00:00:00');
 
         $sql = "SELECT 
+                TC.id,
                 TC.RazonSocial,
                 C.Recorrido,
                 TC.idColecta,
@@ -137,6 +138,7 @@ class warehouse extends conexion
             $codigoSeguimiento = trim((string)$row['CodigoSeguimiento']);
             $codigoProveedor   = trim((string)$row['CodigoProveedor']);
             $cantidad          = isset($row['Cantidad']) ? (int)$row['Cantidad'] : 1;
+            $id                = isset($row['id']) ? (int)$row['id'] : null;
 
             // Filtrar código padre / cabecera de colecta
             if ($codigoSeguimiento !== '' && $codigoSeguimiento === $codigoProveedor && $cantidad > 1) {
@@ -155,6 +157,7 @@ class warehouse extends conexion
             }
 
             $agrupado[$key]["codigos"][] = [
+                "idCaddy"   => $id,
                 "CodigoSeguimiento" => $codigoSeguimiento,
                 "CodigoProveedor"   => $codigoProveedor,
                 "Cantidad"          => $cantidad
