@@ -105,17 +105,17 @@ class warehouse extends conexion
         $hasta = $this->escape(date('Y-m-d', strtotime($fecha . ' +1 day')) . ' 00:00:00');
 
         $sql = "SELECT 
+                    TC.RazonSocial,
                     TC.Recorrido,
                     TC.idColecta,
                     TC.CodigoSeguimiento,
                     TC.Wepoint_c as CodigoProveedor
+                    TC.Cantidad
                 FROM TransClientes TC
                 INNER JOIN Colecta C 
                     ON TC.idColecta = C.id
-                WHERE 
-                    TC.Entregado = 0
-                    AND TC.Devuelto = 0
-                    AND TC.Eliminado = 0
+                WHERE                     
+                     TC.Eliminado = 0
                     AND C.Fecha >= '$desde'
                     AND C.Fecha < '$hasta'
                 ORDER BY TC.Recorrido, TC.id ASC";
@@ -140,6 +140,7 @@ class warehouse extends conexion
 
             if (!isset($agrupado[$key])) {
                 $agrupado[$key] = [
+                    "Origen"    => $row['RazonSocial'],
                     "Recorrido" => $row['Recorrido'],
                     "idColecta" => $row['idColecta'],
                     "codigos"   => []
@@ -199,9 +200,9 @@ class warehouse extends conexion
         $so = (int)($datos['so'] ?? 0);
         $oc = (int)($datos['oc'] ?? 0);
 
-        if ($so <= 0 || $oc <= 0) {
-            return $_respuestas->error_400("Faltan datos obligatorios: so/oc");
-        }
+        // if ($so <= 0 || $oc <= 0) {
+        //     return $_respuestas->error_400("Faltan datos obligatorios: so/oc");
+        // }
 
         $resultado = [
             "procesados"     => 0,
