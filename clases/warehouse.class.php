@@ -164,7 +164,18 @@ class warehouse extends conexion
                 ]
             ];
         }
-
+        return [
+            "result" => [
+                "error_id"  => 0,
+                "error_msg" => "DEBUG",
+                "fecha"     => $fecha,
+                "sql"       => $sql,
+                "rows_raw"  => $rows,
+                "total_raw" => is_array($rows) ? count($rows) : -1,
+                "usuario"   => $this->tokenData['UsuarioId'] ?? null,
+                "cliente"   => $this->tokenData['NdeCliente'] ?? null
+            ]
+        ];
         return [
             "result" => [
                 "error_id"  => 0,
