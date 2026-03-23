@@ -134,6 +134,15 @@ class warehouse extends conexion
         $agrupado = [];
 
         foreach ($rows as $row) {
+            $codigoSeguimiento = trim((string)$row['CodigoSeguimiento']);
+            $codigoProveedor   = trim((string)$row['CodigoProveedor']);
+            $cantidad          = isset($row['Cantidad']) ? (int)$row['Cantidad'] : 1;
+
+            // Filtrar código padre / cabecera de colecta
+            if ($codigoSeguimiento !== '' && $codigoSeguimiento === $codigoProveedor && $cantidad > 1) {
+                continue;
+            }
+
             $key = $row['Recorrido'] . '_' . $row['idColecta'];
 
             if (!isset($agrupado[$key])) {
@@ -146,12 +155,16 @@ class warehouse extends conexion
             }
 
             $agrupado[$key]["codigos"][] = [
-                "CodigoSeguimiento" => $row['CodigoSeguimiento'],
-                "CodigoProveedor"   => trim((string)$row['CodigoProveedor']),
-                "Cantidad"          => isset($row['Cantidad']) ? (int)$row['Cantidad'] : 1
+                "CodigoSeguimiento" => $codigoSeguimiento,
+                "CodigoProveedor"   => $codigoProveedor,
+                "Cantidad"          => $cantidad
             ];
         }
-
+        foreach ($agrupado as $k => $colecta) {
+            if (empty($colecta['codigos'])) {
+                unset($agrupado[$k]);
+            }
+        }
         $colectas = array_values($agrupado);
 
         return [
