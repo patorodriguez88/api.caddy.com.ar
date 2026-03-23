@@ -201,9 +201,9 @@ class warehouse extends conexion
         $so = (int)($datos['so'] ?? 0);
         $oc = (int)($datos['oc'] ?? 0);
 
-        if ($so <= 0 || $oc <= 0) {
-            return $_respuestas->error_400("Faltan datos obligatorios: so/oc");
-        }
+        // if ($so <= 0 || $oc <= 0) {
+        //     return $_respuestas->error_400("Faltan datos obligatorios: so/oc");
+        // }
 
         $resultado = [
             "procesados"     => 0,
