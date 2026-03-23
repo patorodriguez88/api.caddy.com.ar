@@ -106,7 +106,7 @@ class warehouse extends conexion
 
         $sql = "SELECT 
                 TC.RazonSocial,
-                TC.Recorrido,
+                C.Recorrido,
                 TC.idColecta,
                 TC.CodigoSeguimiento,
                 TC.Wepoint_c as CodigoProveedor,
