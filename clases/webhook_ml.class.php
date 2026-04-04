@@ -29,7 +29,7 @@ class auth extends conexion
         $agency_description = isset($datos['agency_description']) ? parent::escapar($datos['agency_description']) : '';
 
         // LOG recomendado
-        parent::logMeli('ACTUALIZACIONES_TRAVEL_RECIBIDO', $datos);
+        parent::logMeli('WEBHOOK_ML_RECIBIDO', $datos);
 
         $query_actualiza_status = "UPDATE Importaciones SET 
             Status='$status',
@@ -39,7 +39,7 @@ class auth extends conexion
             agency_description='$agency_description'
             WHERE shipments_id='$shipping_id' AND Eliminado=0";
 
-        parent::logMeli('ACTUALIZACIONES_TRAVEL_UPDATE', array(
+        parent::logMeli('WEBHOOK_ML_UPDATE', array(
             'shipping_id' => $shipping_id,
             'status' => $status,
             'substatus' => $substatus
@@ -48,18 +48,13 @@ class auth extends conexion
         $SQL_UPDATE = parent::nonQuery($query_actualiza_status);
 
         // Sync con TransClientes
-        $QUERY_STATUS = "SELECT status FROM TransClientes 
-                         WHERE Eliminado=0 AND shipments_id='$shipping_id' LIMIT 1";
+        $QUERY_STATUS = "SELECT status FROM TransClientes WHERE Eliminado=0 AND shipments_id='$shipping_id' LIMIT 1";
         $DATO_STATUS = parent::obtenerDatos($QUERY_STATUS);
 
         if ($DATO_STATUS && isset($DATO_STATUS[0]['status'])) {
             if ($DATO_STATUS[0]['status'] != $status) {
 
-                $QUERY_UPDATE_TC = "UPDATE TransClientes 
-                                    SET status='$status' 
-                                    WHERE Eliminado=0 
-                                    AND shipments_id='$shipping_id' 
-                                    LIMIT 1";
+                $QUERY_UPDATE_TC = "UPDATE TransClientes SET status='$status' WHERE Eliminado=0 AND shipments_id='$shipping_id' LIMIT 1";
 
                 parent::nonQuery($QUERY_UPDATE_TC);
             }
