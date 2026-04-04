@@ -172,7 +172,7 @@ class auth extends conexion
             'WEBHOOK_MELI ($status / $substatus)',
             '$entregado',
             '$estado_nombre',
-            '" . parent::escapar($t['idCliente']) . "',
+            '" . parent::escapar($t['IngBrutosOrigen']) . "',
             '" . parent::escapar($t['Retirado']) . "',
             '" . parent::escapar($t['Visitas']) . "',
             '" . parent::escapar($t['id']) . "',
