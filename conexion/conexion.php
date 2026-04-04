@@ -79,22 +79,32 @@ class conexion
     {
         $results = $this->conexion->query($sqlstr);
         $resultArray = array();
+
+        if (!$results) {
+            return $resultArray;
+        }
+
         foreach ($results as $key) {
             $resultArray[] = $key;
         }
+
         return $this->convertirUTF8($resultArray);
     }
-
     public function obtenerDatosLimpios($sqlstr)
     {
         $results = $this->conexion->query($sqlstr);
         $resultArray = array();
+
+        if (!$results) {
+            return $resultArray;
+        }
+
         foreach ($results as $key) {
             $resultArray[] = $key['id'];
         }
+
         return $this->convertirUTF8($resultArray);
     }
-
 
     public function nonQuery($sqlstr)
     {
