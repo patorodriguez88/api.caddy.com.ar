@@ -139,4 +139,33 @@ class conexion
     {
         return $this->conexion->real_escape_string($str);
     }
+    public function logMeli($mensaje, $data = null)
+    {
+        $archivo = __DIR__ . '/log_webhook_ml.log';
+        $maxSize = 5 * 1024 * 1024; // 5 MB
+
+        // 🔁 Rotación si el archivo supera el tamaño máximo
+        if (file_exists($archivo)) {
+            $size = filesize($archivo);
+
+            if ($size !== false && $size >= $maxSize) {
+                $nuevoNombre = __DIR__ . '/log_webhook_ml_' . date('Ymd_His') . '.log';
+                @rename($archivo, $nuevoNombre);
+            }
+        }
+
+        // 🧾 Armar log
+        $log = array(
+            'fecha'   => date('Y-m-d H:i:s'),
+            'mensaje' => $mensaje,
+            'data'    => $data
+        );
+
+        // 📝 Escribir log
+        @file_put_contents(
+            $archivo,
+            json_encode($log, JSON_UNESCAPED_UNICODE) . PHP_EOL,
+            FILE_APPEND
+        );
+    }
 }
