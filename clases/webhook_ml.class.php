@@ -65,6 +65,12 @@ class auth extends conexion
             }
         }
 
-        return 1;
+        return array(
+            'ok' => 1,
+            'shipping_id' => $shipping_id,
+            'status' => $status,
+            'substatus' => $substatus,
+            'updated' => $SQL_UPDATE
+        );
     }
 }
