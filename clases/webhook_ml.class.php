@@ -285,7 +285,7 @@ class auth extends conexion
     private function obtenerEstadoPorSlug($slug)
     {
         $qEstado = "SELECT id, Estado 
-                    FROM estados 
+                    FROM Estados 
                     WHERE slug='" . parent::escapar($slug) . "' 
                     LIMIT 1";
 
