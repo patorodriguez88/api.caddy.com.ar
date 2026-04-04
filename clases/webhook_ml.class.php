@@ -1,6 +1,7 @@
 <?php
-require_once 'conexion/conexion.php';
-require_once 'respuestas.class.php';
+
+require_once __DIR__ . "/../conexion/conexion.php";
+require_once __DIR__ . "/respuestas.class.php";
 
 class auth extends conexion
 {
