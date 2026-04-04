@@ -257,17 +257,19 @@ class auth extends conexion
         $fecha = date('Y-m-d');
         $hora  = date('H:i:s');
 
-        $codigoSeguimiento = $this->valorTC($t, array('CodigoSeguimiento', 'Seguimiento'), '');
-        $idCliente = $this->valorTC($t, array('idCliente', 'NCliente', 'idOrigen', 'Cliente'), 0);
+        $codigoSeguimiento = $this->valorTC($t, array('CodigoSeguimiento'), '');
+        $idCliente = $this->valorTC($t, array('IngBrutosOrigen'), 0);
         $retirado = $this->valorTC($t, array('Retirado'), 0);
         $visitas = $this->valorTC($t, array('Visitas'), 0);
         $recorrido = $this->valorTC($t, array('Recorrido'), 0);
         $devuelto = $this->valorTC($t, array('Devuelto'), 0);
+        $nombrecompleto = $this->valorTC($t, array('ClienteDestino'), '');
+        $destino = $this->valorTC($t, array('DomicilioDestino'), '');
 
         $insert = "INSERT INTO Seguimiento (
             Fecha, Hora, Usuario, Sucursal,
             CodigoSeguimiento, Observaciones,
-            Entregado, Estado,
+            Entregado, Estado,NombreCompleto,Destino,
             idCliente, Retirado,
             Visitas, idTransClientes,
             TimeStamp, Recorrido,
@@ -283,6 +285,8 @@ class auth extends conexion
             '" . parent::escapar($observacion) . "',
             '$entregado',
             '" . parent::escapar($estado_nombre) . "',
+            '" . parent::escapar($nombrecompleto) . "',
+            '" . parent::escapar($destino) . "',
             '" . parent::escapar($idCliente) . "',
             '" . parent::escapar($retirado) . "',
             '" . parent::escapar($visitas) . "',
