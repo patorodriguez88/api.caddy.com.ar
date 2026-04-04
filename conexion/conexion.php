@@ -139,6 +139,12 @@ class conexion
     {
         return $this->conexion->real_escape_string($str);
     }
+    public function escapar($valor)
+    {
+        return $this->conexion->real_escape_string((string)$valor);
+    }
+
+
     public function logMeli($mensaje, $data = null)
     {
         $archivo = __DIR__ . '/log_webhook_ml.log';

@@ -19,13 +19,13 @@ class auth extends conexion
             return $_respuestas->error_400();
         }
 
-        $shipping_id = isset($datos['shipments_id']) ? parent::escapeString($datos['shipments_id']) : '';
-        $status = isset($datos['status']) ? parent::escapeString($datos['status']) : '';
-        $substatus = isset($datos['substatus']) ? parent::escapeString($datos['substatus']) : '';
-        $logistic_type = isset($datos['logistic_type']) ? parent::escapeString($datos['logistic_type']) : '';
-        $estimated_delivery_time = isset($datos['estimated_delivery_time']) ? parent::escapeString($datos['estimated_delivery_time']) : '';
-        $tracking_method = isset($datos['tracking_method']) ? parent::escapeString($datos['tracking_method']) : '';
-        $agency_description = isset($datos['agency_description']) ? parent::escapeString($datos['agency_description']) : '';
+        $shipping_id = isset($datos['shipments_id']) ? parent::escapar($datos['shipments_id']) : '';
+        $status = isset($datos['status']) ? parent::escapar($datos['status']) : '';
+        $substatus = isset($datos['substatus']) ? parent::escapar($datos['substatus']) : '';
+        $logistic_type = isset($datos['logistic_type']) ? parent::escapar($datos['logistic_type']) : '';
+        $estimated_delivery_time = isset($datos['estimated_delivery_time']) ? parent::escapar($datos['estimated_delivery_time']) : '';
+        $tracking_method = isset($datos['tracking_method']) ? parent::escapar($datos['tracking_method']) : '';
+        $agency_description = isset($datos['agency_description']) ? parent::escapar($datos['agency_description']) : '';
 
         // LOG recomendado
         parent::logMeli('ACTUALIZACIONES_TRAVEL_RECIBIDO', $datos);
