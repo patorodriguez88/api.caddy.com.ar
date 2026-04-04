@@ -115,6 +115,7 @@ class auth extends conexion
 
         $qExiste = "SELECT id FROM Seguimiento 
             WHERE idTransClientes='" . $t['id'] . "' 
+            AND Eliminado=0
             AND state_id='$state_id'
             AND Observaciones='WEBHOOK_MELI ($status / $substatus)'
             LIMIT 1";
