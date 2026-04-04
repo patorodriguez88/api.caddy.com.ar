@@ -95,7 +95,7 @@ class auth extends conexion
         // =========================================
 
         $qEstado = "SELECT id, Estado 
-                    FROM estados 
+                    FROM Estados 
                     WHERE slug='$slug' 
                     LIMIT 1";
 
