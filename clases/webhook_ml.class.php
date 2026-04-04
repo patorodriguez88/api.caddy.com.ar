@@ -178,6 +178,59 @@ class auth extends conexion
         }
 
         // =========================================
+        // 🔴 MELI DICE ENTREGADO → FORZAR LÓGICA INTERNA
+        // =========================================
+        if ($status == 'delivered') {
+
+            $idTransClientes = $this->valorTC($t, array('id'), 0);
+            $codigoSeguimiento = $this->valorTC($t, array('CodigoSeguimiento', 'Seguimiento'), '');
+            $recorrido = $this->valorTC($t, array('Recorrido'), 0);
+
+            // 1. TRANSCLIENTES → marcar entregado
+            $qTC = "UPDATE TransClientes 
+            SET Entregado = 1,
+                status = 'delivered'
+            WHERE id='" . parent::escapar($idTransClientes) . "' 
+            LIMIT 1";
+            parent::nonQuery($qTC);
+
+            // 2. HOJA DE RUTA → cerrar recorrido
+            $qHR = "UPDATE HojaDeRuta 
+            SET Estado = 'Cerrado'
+            WHERE Seguimiento='" . parent::escapar($codigoSeguimiento) . "'";
+            parent::nonQuery($qHR);
+
+            // 3. VER SI YA EXISTE ENTREGADO EN SEGUIMIENTO
+            $seguimientoEntregado = $this->buscarSeguimientoEntregado($idTransClientes);
+
+            if ($seguimientoEntregado) {
+
+                // SOLO ACTUALIZA MELI
+                $idSeguimiento = $seguimientoEntregado['id'];
+
+                $qUpdate = "UPDATE Seguimiento 
+                    SET status_meli='$status',
+                        substatus_meli='$substatus',
+                        TimeStamp=NOW()
+                    WHERE id='" . parent::escapar($idSeguimiento) . "' 
+                    LIMIT 1";
+
+                parent::nonQuery($qUpdate);
+
+                parent::logMeli('DELIVERED_UPDATE_EXISTENTE', $shipping_id);
+
+                return array(
+                    'ok' => 1,
+                    'msg' => 'entregado actualizado',
+                    'shipping_id' => $shipping_id
+                );
+            }
+
+            // SI NO EXISTE → INSERTAR ENTREGADO
+            $slug = 'delivered';
+        }
+
+        // =========================================
         // 8. DATOS AUXILIARES
         // =========================================
         $numeroDeOrden = $this->valorTC($t, array('NumeroDeOrden', 'NumerodeOrden', 'Numerodeorden'), 0);
