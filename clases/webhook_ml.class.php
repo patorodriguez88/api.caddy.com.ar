@@ -208,10 +208,6 @@ class auth extends conexion
     // =========================================
     private function mapearEstado($status, $substatus)
     {
-        // primero casos especiales por substatus
-        if ($substatus == 'packed' || $substatus == 'ready_to_pack' || $substatus == 'ready_to_print' || $substatus == 'in_warehouse') {
-            return 'warehouse_validated';
-        }
 
         if ($status == 'shipped') {
             return 'last_mile';
