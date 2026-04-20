@@ -540,20 +540,16 @@ if (!$token) {
 // 2) Instanciar servicio (tiene la conexión a BD)
 $svc = new EtiquetaService();
 
+// 3) Validar token usando la BD del servicio
+$tokenData = Token::validar($token, $svc);
+
 
 header('Content-Type: application/json');
 echo json_encode([
-    'http_x_api_token' => $_SERVER['HTTP_X_API_TOKEN'] ?? null,
-    'http_authorization' => $_SERVER['HTTP_AUTHORIZATION'] ?? null,
-    'token_obtenido' => $token
+    'token_recibido' => $token,
+    'token_data' => $tokenData
 ], JSON_PRETTY_PRINT);
 exit;
-
-
-
-
-// 3) Validar token usando la BD del servicio
-$tokenData = Token::validar($token, $svc);
 
 if (!$tokenData) {
     header('Content-Type: application/json');
