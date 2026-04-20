@@ -543,10 +543,9 @@ $svc = new EtiquetaService();
 // 3) Validar token usando la BD del servicio
 $tokenData = Token::validar($token, $svc);
 
-
 header('Content-Type: application/json');
 echo json_encode([
-    'token_recibido' => $token,
+    'token_obtenido' => $token,
     'token_data' => $tokenData
 ], JSON_PRETTY_PRINT);
 exit;
