@@ -545,7 +545,7 @@ $tokenData = Token::validar($token, $svc);
 
 if (!$tokenData) {
     header('Content-Type: application/json');
-    $resp = $_respuestas->error_401("Token inválido o vencido");
+    $resp = $_respuestas->error_401("Token " . $tokenData . " inválido o vencido");
     echo json_encode($resp);
     http_response_code(401);
     exit;
