@@ -543,13 +543,6 @@ $svc = new EtiquetaService();
 // 3) Validar token usando la BD del servicio
 $tokenData = Token::validar($token, $svc);
 
-header('Content-Type: application/json');
-echo json_encode([
-    'token_obtenido' => $token,
-    'token_data' => $tokenData
-], JSON_PRETTY_PRINT);
-exit;
-
 if (!$tokenData) {
     header('Content-Type: application/json');
     $resp = $_respuestas->error_401("Token inválido o vencido");
