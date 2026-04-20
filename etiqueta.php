@@ -74,7 +74,24 @@ class EtiquetaService extends conexion
         LIMIT 1
     ";
 
+        // $datos = $this->obtenerDatos($query_transclientes);
         $datos = $this->obtenerDatos($query_transclientes);
+
+        header('Content-Type: application/json');
+
+        echo json_encode([
+
+            'codigoSeguimiento' => $codigoSeguimiento,
+
+            'idOrigen' => $idOrigen,
+
+            'query_transclientes' => $query_transclientes,
+
+            'resultado_transclientes' => $datos
+
+        ], JSON_PRETTY_PRINT);
+
+        exit;
 
         if ($datos && isset($datos[0])) {
             return $datos[0];   // 👈 el paquete pertenece al cliente del token
