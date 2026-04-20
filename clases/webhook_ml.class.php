@@ -4,6 +4,7 @@ require_once __DIR__ . "/respuestas.class.php";
 
 class auth extends conexion
 {
+
     public function login($json)
     {
         $_respuestas = new respuestas;
@@ -258,11 +259,22 @@ class auth extends conexion
         $codigoSeguimiento = $this->valorTC($t, array('CodigoSeguimiento'), '');
         $idCliente = $this->valorTC($t, array('IngBrutosOrigen'), 0);
         $retirado = $this->valorTC($t, array('Retirado'), 0);
-        $visitas = $this->valorTC($t, array('Visitas'), 0);
+        $visitasTransClientes = $this->valorTC($t, array('Visitas'), 0);
         $recorrido = $this->valorTC($t, array('Recorrido'), 0);
         $devuelto = $this->valorTC($t, array('Devuelto'), 0);
         $nombrecompleto = $this->valorTC($t, array('ClienteDestino'), '');
         $destino = $this->valorTC($t, array('DomicilioDestino'), '');
+
+        $sumaVisita = isset($estadoDB['Visitas']) ? (int)$estadoDB['Visitas'] : 0;
+        $visitas = $this->calcularVisitasSeguimiento($idTransClientes, $sumaVisita, $visitasTransClientes);
+
+        $qUpdateVisitasTC = "UPDATE TransClientes
+                     SET Visitas='" . parent::escapar($visitas) . "'
+                     WHERE id='" . parent::escapar($idTransClientes) . "'
+                     AND Eliminado=0
+                     LIMIT 1";
+
+        parent::nonQuery($qUpdateVisitasTC);
 
         $insert = "INSERT INTO Seguimiento (
             Fecha, Hora, Usuario, Sucursal,
@@ -321,7 +333,31 @@ class auth extends conexion
             'seguimiento_insertado' => $insert_result
         );
     }
+    private function calcularVisitasSeguimiento($idTransClientes, $sumaVisita, $visitasTransClientes = 0)
+    {
+        $qUltimaVisita = "SELECT Visitas
+                      FROM Seguimiento
+                      WHERE idTransClientes='" . parent::escapar($idTransClientes) . "'
+                        AND Eliminado=0
+                      ORDER BY id DESC
+                      LIMIT 1";
 
+        $ultimaVisita = parent::obtenerDatos($qUltimaVisita);
+
+        $visitasActuales = 0;
+
+        if ($ultimaVisita && isset($ultimaVisita[0]['Visitas'])) {
+            $visitasActuales = (int)$ultimaVisita[0]['Visitas'];
+        } else {
+            $visitasActuales = (int)$visitasTransClientes;
+        }
+
+        if ((int)$sumaVisita === 1) {
+            return $visitasActuales + 1;
+        }
+
+        return $visitasActuales;
+    }
     private function valorTC($row, $keys, $default)
     {
         $i = 0;
@@ -338,15 +374,21 @@ class auth extends conexion
     }
 
     private function obtenerEstadoPorSlug($slug)
+
     {
-        $qEstado = "SELECT id, Estado 
-                    FROM Estados 
-                    WHERE slug='" . parent::escapar($slug) . "' 
-                    LIMIT 1";
+
+        $qEstado = "SELECT id, Estado, Visitas
+
+                FROM Estados 
+
+                WHERE slug='" . parent::escapar($slug) . "' 
+
+                LIMIT 1";
 
         $estadoDB = parent::obtenerDatos($qEstado);
 
         if (!$estadoDB) {
+
             return false;
         }
 

@@ -76,6 +76,7 @@ class EtiquetaService extends conexion
 
         $datos = $this->obtenerDatos($query_transclientes);
 
+
         if ($datos && isset($datos[0])) {
             return $datos[0];   // 👈 el paquete pertenece al cliente del token
         }
