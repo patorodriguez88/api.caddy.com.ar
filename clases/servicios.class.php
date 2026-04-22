@@ -577,7 +577,7 @@ class servicios extends conexion
 
         // VALOR DECLARADO
         if (!isset($datos['ValorDeclarado']) || $datos['ValorDeclarado'] == 0) {
-            $this->valordec = 10000;
+            $this->valordec = 20000;
         } else {
             $this->valordec = $datos['ValorDeclarado'];
         }
