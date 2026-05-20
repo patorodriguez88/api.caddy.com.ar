@@ -599,9 +599,8 @@ class servicios extends conexion
 
         $date = $this->date_send($codigoPostal);
 
-        $citydestination = $date[0]['Localidad'] ?? null;
-        $send_date       = $date[0]['DiaSalida'] ?? null;
-
+        $citydestination = isset($date[0]['Localidad']) ? $date[0]['Localidad'] : '';
+        $send_date       = isset($date[0]['DiaSalida']) ? $date[0]['DiaSalida'] : '';
         $Total             = $this->cantidad * floatval($tarifa_rate);
         $tarifa_rate_label = round($tarifa_rate);
         $total_label       = round($Total);
@@ -734,15 +733,26 @@ class servicios extends conexion
 
     public function date_send($codigopostal)
     {
+        $Localidad = trim((string)$codigopostal);
 
-        if (($codigopostal >= '5000') && ($codigopostal <= '5023')) {
-
+        if ($Localidad === '' || $Localidad === '0') {
             $Localidad = '5000';
         }
 
-        $query = "SELECT DiaSalida,Localidad FROM Localidades WHERE Cp = '" . $Localidad . "'";
+        if ($Localidad >= '5000' && $Localidad <= '5023') {
+            $Localidad = '5000';
+        }
+
+        $query = "SELECT DiaSalida, Localidad 
+              FROM Localidades 
+              WHERE Cp = '" . $Localidad . "'
+              LIMIT 1";
 
         $resp = parent::obtenerDatos($query);
+
+        if (!$resp) {
+            return array();
+        }
 
         return $resp;
     }
