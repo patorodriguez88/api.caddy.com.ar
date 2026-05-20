@@ -29,7 +29,7 @@ RewriteRule ^(src|vendor)/ - [F,L]
 
 # Preflight CORS directo desde la raíz
 RewriteCond %{REQUEST_METHOD} =OPTIONS
-RewriteRule ^ - [R=204,L]
+RewriteRule ^ - [R=200,L]
 
 # Bloqueamos solo cosas realmente sensibles
 <FilesMatch "\.(env|ini|lock|sql|bak)$">
