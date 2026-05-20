@@ -1,3 +1,11 @@
+<IfModule mod_security2.c>
+  SecRuleEngine Off
+</IfModule>
+
+<IfModule security2_module>
+  SecRuleEngine Off
+</IfModule>
+
 RewriteEngine On
 
 # 1) No tocar si es archivo o carpeta existente
