@@ -1,4 +1,13 @@
+# Evitar listado de directorios (defensa principal contra exposición de archivos)
+Options -Indexes
+IndexIgnore *
+
 RewriteEngine On
+
+# Bloquear acceso directo a código interno y de conexión (solo se usan via require/include)
+# IMPORTANTE: esta regla va ANTES de "dejar pasar archivos/carpetas existentes",
+# si no, un archivo real como conexion/config se serviría igual como estático.
+RewriteRule ^(src|vendor|conexion|clases|Integraciones|libs)/ - [F,L]
 
 # 1) No tocar si es archivo o carpeta existente
 RewriteCond %{REQUEST_FILENAME} -f [OR]
@@ -15,9 +24,6 @@ RewriteRule ^(.+)$ $1.html [L,QSA]
 
 # Permitir ACME/SSL desde la raíz
 RewriteRule ^\.well-known/acme-challenge/ - [L]
-
-# Bloquear acceso directo a código interno
-RewriteRule ^(src|vendor)/ - [F,L]
 
 # Preflight CORS directo desde la raíz
  RewriteCond %{REQUEST_METHOD} =OPTIONS
