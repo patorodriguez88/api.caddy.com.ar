@@ -3,6 +3,8 @@ require_once __DIR__ . '/../conexion/conexion.php';
 
 class Token
 {
+    private const TTL_SECONDS = 86400;
+
     /**
      * Obtiene el token desde:
      *  - Authorization: Bearer xxx
@@ -68,8 +70,9 @@ class Token
      */
     public static function validar(string $token, conexion $db): ?array
     {
+        $ttl = self::TTL_SECONDS;
         $query = "
-            SELECT 
+            SELECT
                 ut.TokenId,
                 ut.UsuarioId,
                 ut.Estado,
@@ -78,6 +81,7 @@ class Token
             JOIN usuarios AS u ON ut.UsuarioId = u.id
             WHERE ut.Token = '" . $token . "'
               AND ut.Estado = 'Activo'
+              AND ut.Fecha > (NOW() - INTERVAL $ttl SECOND)
             LIMIT 1
         ";
 

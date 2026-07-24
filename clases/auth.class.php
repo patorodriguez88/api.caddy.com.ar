@@ -8,6 +8,7 @@ require_once 'respuestas.class.php';
 
 class auth extends conexion
 {
+    private const TOKEN_TTL_SECONDS = 86400;
 
     public function login($json)
     {
@@ -32,18 +33,21 @@ class auth extends conexion
                         //VERIFICAR TOKEN
                         $verificar = $this->verificartoken($datos[0]['id']);
                         if ($verificar) {
+                            $antiguedad = time() - strtotime($verificar[0]['Fecha']);
+                            $expiresIn = max(0, self::TOKEN_TTL_SECONDS - $antiguedad);
                             $result = $_respustas->response;
                             $result["result"] = array(
                                 "Estado" => $verificar[0]['Estado'],
                                 "token" => $verificar[0]['Token'],
+                                "expires_in" => $expiresIn,
                             );
                             return $result;
                         } else {
-                            //ELIMINA TOKEN VIGENTES
-                            $verificartoken = $this->inactivaToken($datos[0]['id']);
-                            //CREAR TOKEN
+                            //CREAR TOKEN (no desactivamos los tokens vigentes de otros
+                            //procesos del mismo usuario: pueden convivir varios activos
+                            //a la vez, cada uno expira solo por TTL)
                             $verificar1  = $this->insertarToken($datos[0]['id']);
-                            $verificarCliente  = $this->insertarTokenCliente($datos[0]['NdeCliente'], $verificar1);
+                            $this->insertarTokenCliente($datos[0]['NdeCliente'], $verificar1);
                         }
 
                         if ($verificar1) {
@@ -51,6 +55,7 @@ class auth extends conexion
                             $result = $_respustas->response;
                             $result["result"] = array(
                                 "token" => $verificar1,
+                                "expires_in" => self::TOKEN_TTL_SECONDS,
                             );
                             return $result;
                         } else {
@@ -114,19 +119,13 @@ class auth extends conexion
 
     private function verificartoken($usuarioid)
     {
-        $query = "SELECT Estado,Token FROM usuarios_token WHERE UsuarioId='$usuarioid' AND DATE_FORMAT(Fecha,'%Y%m%d') = CURRENT_DATE AND Estado='Activo'";
+        $ttl = self::TOKEN_TTL_SECONDS;
+        $query = "SELECT Estado,Token,Fecha FROM usuarios_token WHERE UsuarioId='$usuarioid' AND Fecha > (NOW() - INTERVAL $ttl SECOND) AND Estado='Activo'";
         $verifica = parent::obtenerDatos($query);
         if ($verifica) {
             return $verifica;
         } else {
             return 0;
         }
-    }
-
-    private function inactivaToken($usuarioid)
-    {
-        $estado = "Inactivo";
-        $query = "UPDATE usuarios_token SET Estado='$estado' WHERE UsuarioId='$usuarioid'";
-        $verifica = parent::nonQuery($query);
     }
 }
