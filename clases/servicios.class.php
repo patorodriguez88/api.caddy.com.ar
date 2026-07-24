@@ -783,7 +783,7 @@ class servicios extends conexion
 
         $query = "SELECT NdeCliente FROM usuarios WHERE id = '" . $idUsuario . "'";
         $resp0 = parent::obtenerDatos($query);
-        $DireccionOrigen_utf = mb_convert_encoding($DireccionOrigen, 'ISO-8859-1', 'UTF-8');
+        $DireccionOrigen_utf = $DireccionOrigen;
 
         $query = "SELECT nombrecliente,id,Direccion FROM Clientes WHERE Relacion= '" . $resp0[0]['NdeCliente'] . "' AND idProveedor = '" . $idProveedor . "'";
         $resp = parent::obtenerDatos($query);
@@ -834,10 +834,10 @@ class servicios extends conexion
         $Precio = floatval($tarifa_rate);
         $Total = $this->cantidad * $Precio;
 
-        $direccion = mb_convert_encoding($this->direccion, 'ISO-8859-1', 'UTF-8');
-        $ciudad = mb_convert_encoding($this->ciudad, 'ISO-8859-1', 'UTF-8');
-        $DireccionClienteOrigen = mb_convert_encoding((string)($this->DireccionClienteOrigen ?? ''), 'ISO-8859-1', 'UTF-8');
-        $ClienteDestino = mb_convert_encoding($this->nombre, 'ISO-8859-1', 'UTF-8');
+        $direccion = $this->direccion;
+        $ciudad = $this->ciudad;
+        $DireccionClienteOrigen = (string)($this->DireccionClienteOrigen ?? '');
+        $ClienteDestino = $this->nombre;
 
         //BUSCO EL CLIENTE DESTINO
         $query = "SELECT id,Observaciones FROM Clientes WHERE nombrecliente = '" . $ClienteDestino . "' AND Direccion = '" . $direccion . "' LIMIT 1";
