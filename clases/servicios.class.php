@@ -981,35 +981,52 @@ class servicios extends conexion
         // todavía no existe (operación barata cuando ya existe). El DDL
         // "oficial" se corre a mano por phpMyAdmin antes del deploy; esto es
         // solo para que nunca falle si alguien se olvida de ese paso.
-        parent::nonQuery(
-            "CREATE TABLE IF NOT EXISTS `PreVentaBultos` (
-                `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-                `CodigoSeguimiento` VARCHAR(9) NOT NULL,
-                `Indice` TINYINT UNSIGNED NOT NULL,
-                `Length` DECIMAL(10,4) NOT NULL,
-                `Width` DECIMAL(10,4) NOT NULL,
-                `Height` DECIMAL(10,4) NOT NULL,
-                `Weight` DECIMAL(10,3) NOT NULL,
-                `ValorDeclarado` DECIMAL(12,2) NOT NULL DEFAULT 0,
-                `PorcentajeAplicado` DECIMAL(4,3) NOT NULL,
-                `PrecioAplicado` DECIMAL(12,2) NOT NULL,
-                `Fecha` DATETIME NOT NULL,
-                PRIMARY KEY (`id`),
-                KEY `idx_codigoseguimiento` (`CodigoSeguimiento`),
-                UNIQUE KEY `uq_codigo_indice` (`CodigoSeguimiento`, `Indice`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8"
-        );
+        //
+        // Todo este bloque va en try/catch: es información complementaria
+        // (detalle por bulto), no debe poder tirar abajo la creación de la
+        // venta real si el motor de DB tira una excepción (falta de permisos,
+        // mysqli en modo estricto, etc.) — se registra el error y se sigue.
+        try {
+            parent::nonQuery(
+                "CREATE TABLE IF NOT EXISTS `PreVentaBultos` (
+                    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    `CodigoSeguimiento` VARCHAR(9) NOT NULL,
+                    `Indice` TINYINT UNSIGNED NOT NULL,
+                    `Length` DECIMAL(10,4) NOT NULL,
+                    `Width` DECIMAL(10,4) NOT NULL,
+                    `Height` DECIMAL(10,4) NOT NULL,
+                    `Weight` DECIMAL(10,3) NOT NULL,
+                    `ValorDeclarado` DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    `PorcentajeAplicado` DECIMAL(4,3) NOT NULL,
+                    `PrecioAplicado` DECIMAL(12,2) NOT NULL,
+                    `Fecha` DATETIME NOT NULL,
+                    PRIMARY KEY (`id`),
+                    KEY `idx_codigoseguimiento` (`CodigoSeguimiento`),
+                    UNIQUE KEY `uq_codigo_indice` (`CodigoSeguimiento`, `Indice`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8"
+            );
 
-        foreach ($bultos as $i => $b) {
-            $query_bulto = "INSERT INTO `PreVentaBultos`
-                (`CodigoSeguimiento`,`Indice`,`Length`,`Width`,`Height`,`Weight`,
-                 `ValorDeclarado`,`PorcentajeAplicado`,`PrecioAplicado`,`Fecha`)
-                VALUES ('" . $CodigoSeguimiento . "','" . ($i + 1) . "',
-                '" . parent::escapar($b['length']) . "','" . parent::escapar($b['width']) . "',
-                '" . parent::escapar($b['height']) . "','" . parent::escapar($b['weight']) . "',
-                '" . parent::escapar($b['valorDeclarado']) . "','" . parent::escapar($b['porcentajeAplicado']) . "',
-                '" . parent::escapar($b['precioAplicado']) . "','" . $Fecha . "')";
-            parent::nonQuery($query_bulto);
+            foreach ($bultos as $i => $b) {
+                $query_bulto = "INSERT INTO `PreVentaBultos`
+                    (`CodigoSeguimiento`,`Indice`,`Length`,`Width`,`Height`,`Weight`,
+                     `ValorDeclarado`,`PorcentajeAplicado`,`PrecioAplicado`,`Fecha`)
+                    VALUES ('" . $CodigoSeguimiento . "','" . ($i + 1) . "',
+                    '" . parent::escapar($b['length']) . "','" . parent::escapar($b['width']) . "',
+                    '" . parent::escapar($b['height']) . "','" . parent::escapar($b['weight']) . "',
+                    '" . parent::escapar($b['valorDeclarado']) . "','" . parent::escapar($b['porcentajeAplicado']) . "',
+                    '" . parent::escapar($b['precioAplicado']) . "','" . $Fecha . "')";
+                parent::nonQuery($query_bulto);
+            }
+        } catch (\Throwable $e) {
+            @file_put_contents(
+                __DIR__ . '/preventabultos_errores.log',
+                json_encode([
+                    'fecha' => date('Y-m-d H:i:s'),
+                    'codigoSeguimiento' => $CodigoSeguimiento,
+                    'error' => $e->getMessage(),
+                ], JSON_UNESCAPED_UNICODE) . PHP_EOL,
+                FILE_APPEND
+            );
         }
 
         $query_preventa = "INSERT INTO `PreVenta`(`Fecha`, `RazonSocial`, `NCliente`, `TipoDeComprobante`, `NumeroComprobante`, `Cantidad`,`Precio`,`Total`,
