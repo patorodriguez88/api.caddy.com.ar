@@ -30,7 +30,7 @@ RewriteRule ^\.well-known/acme-challenge/ - [L]
  RewriteRule ^ - [R=204,L]
 
 # Bloqueamos solo cosas realmente sensibles
-<FilesMatch "\.(env|ini|lock|sql|bak)$">
+<FilesMatch "\.(env|ini|lock|sql|bak|log)$">
   Require all denied
 </FilesMatch>
 
