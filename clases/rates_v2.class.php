@@ -1,6 +1,7 @@
 <?php
 require_once "conexion/conexion.php";
 require_once "respuestas.class.php";
+require_once "pricing.class.php";
 date_default_timezone_set('America/Argentina/Cordoba');
 
 /**
@@ -139,7 +140,9 @@ class RatesV2 extends conexion
         $distance_label = ($km === 500) ? 'Más de 50 km.' : ('Hasta ' . $km . ' km.');
 
         $precioVenta = (float)$price[0]['PrecioVenta'];
-        $total = ($this->cantidad * $precioVenta) + $surePrice;
+        $cant = max(1, (int)$this->cantidad);
+        $tarifaTotal = Pricing::totalConDescuento(array_fill(0, $cant, $precioVenta));
+        $total = $tarifaTotal + $surePrice;
 
         if ($esCapital) {
             $citydestination = 'Cordoba Capital';
@@ -261,7 +264,7 @@ class RatesV2 extends conexion
     public function insert_quote($id, $nombre, $price_title, $precio, $citydestination, $length, $width, $height, $weight, $distance, $send_date)
     {
         $date  = date('Y-m-d');
-        $Total = $this->cantidad * $precio;
+        $Total = Pricing::totalConDescuento(array_fill(0, max(1, (int)$this->cantidad), (float)$precio));
 
         $sqlstr = "INSERT INTO `Cotizaciones`(`Fecha`,`RazonSocial`, `NCliente`, `Cantidad`,`Precio`,`Total`,
              `LocalidadDestino`,`Ancho`, `Alto`, `Largo`, `Peso`,`Tarifa`,`EntregaEn`,`Kilometros`,`FechaEntrega`) 
@@ -328,7 +331,7 @@ class RatesV2 extends conexion
     private function buscarToken()
     {
         $q = "SELECT TokenId,UsuarioId,Estado FROM usuarios_token
-          WHERE Token = '" . $this->token . "' AND Estado = 'Activo'";
+          WHERE Token = '" . parent::escapar($this->token) . "' AND Estado = 'Activo'";
         $resp = parent::obtenerDatos($q);
         return $resp ? $resp : 0;
     }

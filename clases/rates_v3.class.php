@@ -28,6 +28,7 @@ ini_set('precision', 14);
 require_once "conexion/conexion.php";
 require_once "token.class.php";
 require_once "respuestas.class.php";
+require_once "pricing.class.php";
 
 date_default_timezone_set('America/Argentina/Cordoba');
 
@@ -224,11 +225,11 @@ class Rates extends conexion
         $distance_label = ($km === 500) ? 'Más de 50 km.' : ('Hasta ' . $km . ' km.');
 
         $precioVenta = (float)$price[0]['PrecioVenta'];
-        $total       = ($this->cantidad * $precioVenta) + $surePrice;
+        $cant        = max(1, (int)$this->cantidad);
+        $total       = Pricing::totalConDescuento(array_fill(0, $cant, $precioVenta)) + $surePrice;
 
         // Labels redondeados (siempre)
         $price_label = (int)round($precioVenta);
-        $total_label = (int)round($total);
 
         if ($esCapital) {
             $citydestination = 'Cordoba Capital';
@@ -275,7 +276,7 @@ class Rates extends conexion
             }
         }
 
-        $tarifaTotal = (float)$this->cantidad * $precioVenta;
+        $tarifaTotal = Pricing::totalConDescuento(array_fill(0, max(1, (int)$this->cantidad), $precioVenta));
 
         $tarifa_label = (int)round($tarifaTotal);
         $seguro_label = (int)round($surePrice);
@@ -365,7 +366,7 @@ class Rates extends conexion
     public function insert_quote($id, $nombre, $price_title, $precio, $citydestination, $length, $width, $height, $weight, $distance, $send_date)
     {
         $date  = date('Y-m-d');
-        $Total = $this->cantidad * $precio;
+        $Total = Pricing::totalConDescuento(array_fill(0, max(1, (int)$this->cantidad), (float)$precio));
 
         $sqlstr = "INSERT INTO `Cotizaciones`(`Fecha`,`RazonSocial`, `NCliente`, `Cantidad`,`Precio`,`Total`,
              `LocalidadDestino`,`Ancho`, `Alto`, `Largo`, `Peso`,`Tarifa`,`EntregaEn`,`Kilometros`,`FechaEntrega`) 
@@ -525,7 +526,11 @@ class Rates extends conexion
         $totalSeguro    = 0.0;
         $totalValorDec  = 0.0;
 
-        // 6) loop por bulto
+        // 6a) Fase A: resolver tarifa/seguro por bulto (sin descuento todavía,
+        // porque la curva necesita ver TODAS las tarifas para ordenarlas antes
+        // de asignar 100%/0%/50%).
+        $calculados = [];
+
         foreach ($bultosIn as $idx => $b) {
             $l    = (float)($b['length'] ?? 0);
             $w    = (float)($b['width']  ?? 0);
@@ -566,8 +571,34 @@ class Rates extends conexion
                 $seguro = $valorDecEfectivo * $sure_porc / 100.0;
             }
 
-            $tarifa = $precioBase;          // 1 servicio = 1 bulto
-            $total  = $tarifa + $seguro;
+            $calculados[] = [
+                'idx'      => $idx,
+                'l'        => $l,
+                'w'        => $w,
+                'h'        => $h,
+                'peso'     => $peso,
+                'volumen_fmt' => $volumen_fmt,
+                'peso_fmt' => $peso_fmt,
+                'tarifa'   => $precioBase,
+                'seguro'   => $seguro,
+                'valorDec' => $valorDec,
+                'row'      => $row,
+            ];
+        }
+
+        // 6b) Fase B: curva de descuento única para toda la API (clases/pricing.class.php),
+        // ordenada por tarifa descendente: 1º 100%, 2º 0%, 3º en adelante 50% c/u.
+        $conDescuento = Pricing::aplicarDescuentoPorBulto($calculados, 'tarifa');
+
+        // 6c) Fase C: armar la salida y persistir en Cotizaciones ya con el
+        // precio descontado (esto es lo que hace que POST /rates y POST /servicios
+        // devuelvan siempre el mismo total para el mismo Box[]/bultos[]).
+        foreach ($conDescuento as $c) {
+            $row        = $c['row'];
+            $tarifaLista = $c['tarifa'];           // precio sin descuento ("sticker")
+            $tarifa      = $c['precioAplicado'];   // precio ya con el % de la curva
+            $seguro      = $c['seguro'];
+            $total       = $tarifa + $seguro;
 
             // Insertar cotización por bulto
             $id_quote = 0;
@@ -576,7 +607,7 @@ class Rates extends conexion
                 $clienteName = (string)($cliente['nombrecliente'] ?? '');
 
                 if ($clienteId > 0 && $clienteName !== '') {
-                    // Para cada bulto, cantidad = 1
+                    // Para cada bulto, cantidad = 1 (el descuento ya se aplicó arriba)
                     $this->cantidad = 1;
                     $id_quote = $this->insert_quote(
                         $clienteId,
@@ -584,10 +615,10 @@ class Rates extends conexion
                         $row['Titulo'],
                         (int)round($tarifa),
                         $citydestination,
-                        $l,
-                        $w,
-                        $h,
-                        $peso,
+                        $c['l'],
+                        $c['w'],
+                        $c['h'],
+                        $c['peso'],
                         (int)($row['Kilometros'] ?? 0),
                         $send_date
                     );
@@ -595,19 +626,20 @@ class Rates extends conexion
             }
 
             $bultosOut[] = [
-                'Indice'          => $idx + 1,
+                'Indice'          => $c['idx'] + 1,
                 'Id'              => $id_quote,
                 'Titulo'          => $row['Titulo'] ?? '',
                 'Codigo'          => $row['Codigo'] ?? $codigoGeneral,
-                'Volumen_m3'      => $volumen_fmt,
-                'Peso'            => $peso_fmt,
-                'Valor_Declarado' => (int)round($valorDec),
+                'Volumen_m3'      => $c['volumen_fmt'],
+                'Peso'            => $c['peso_fmt'],
+                'Valor_Declarado' => (int)round($c['valorDec']),
+                'Tarifa_Lista'    => (int)round($tarifaLista),
                 'Tarifa'          => (int)round($tarifa),
                 'Seguro'          => (int)round($seguro),
                 'Total'           => (int)round($total),
             ];
 
-            $totalValorDec += $valorDec;
+            $totalValorDec += $c['valorDec'];
             $totalTarifa   += $tarifa;
             $totalSeguro   += $seguro;
         }

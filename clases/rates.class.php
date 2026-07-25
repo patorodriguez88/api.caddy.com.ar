@@ -3,6 +3,7 @@
 require_once "conexion/conexion.php";
 require_once "token.class.php";
 require_once "respuestas.class.php";
+require_once "pricing.class.php";
 
 date_default_timezone_set('America/Argentina/Cordoba');
 
@@ -210,33 +211,15 @@ class Rates extends conexion
         $distance_label = ($km === 500) ? 'Más de 50 km.' : ('Hasta ' . $km . ' km.');
 
         $precioVenta = (float)$price[0]['PrecioVenta']; // tarifa base (1 envío)
-        $esFlex = ($this->flex === 1 && $esCapital);
         // ==========================
         // 2) Tarifa logística total
-        //    - FLEX en Capital:
-        //        1º: 100%
-        //        2º: 0%
-        //        3º+: 50%
-        //    - Resto: cantidad * precio
+        //    Curva de descuento por volumen, universal (FLEX y no FLEX):
+        //        1º bulto: 100% / 2º: 0% / 3º en adelante: 50% c/u
+        //    Ver clases/pricing.class.php (única fuente de esta lógica en
+        //    toda la API, para que cotización y cobro nunca se desalineen).
         // ==========================
         $cant = max(1, (int)$this->cantidad);
-        $tarifaTotal = 0.0;
-
-        if ($esFlex) {
-            // FLEX en Capital:
-            // 1º: 100% de la tarifa
-            if ($cant >= 1) {
-                $tarifaTotal += $precioVenta;
-            }
-            // 2º: bonificado
-            // 3º en adelante: 50% cada uno
-            if ($cant >= 3) {
-                $tarifaTotal += ($cant - 2) * ($precioVenta * 0.5);
-            }
-        } else {
-            // comportamiento clásico
-            $tarifaTotal = $cant * $precioVenta;
-        }
+        $tarifaTotal = Pricing::totalConDescuento(array_fill(0, $cant, $precioVenta));
 
         // Total final (tarifa + seguro)
         $total = $tarifaTotal + $surePrice;

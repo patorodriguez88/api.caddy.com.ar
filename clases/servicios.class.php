@@ -9,6 +9,7 @@ if (function_exists('opcache_invalidate')) {
 }
 // require_once "../conexion/conexion.php";
 require_once "respuestas.class.php";
+require_once "pricing.class.php";
 
 class servicios extends conexion
 {
@@ -420,59 +421,94 @@ class servicios extends conexion
             return $_respuestas->error_400();
         }
 
-        // --- tus variables actuales, igual que antes ---
+        // --- BOX[] / CANTIDAD: contrato de compatibilidad ---
+        // - Box con 1 elemento + Cantidad=N -> modo legacy, se replica ese bulto N veces
+        //   (igual que el comportamiento de siempre, ningún cliente actual necesita cambiar nada).
+        // - Box con exactamente N elementos (N=Cantidad, N>1) -> modo nuevo, bultos heterogéneos.
+        // - Cualquier otra combinación -> error.
 
-        $length    = $datos['Box'][0]['Length'] ?? null;
-        $width     = $datos['Box'][0]['Width']  ?? null;
-        $height    = $datos['Box'][0]['Height'] ?? null;
-        $weight    = $datos['Box'][0]['Weight'] ?? null;
-        $cobranza  = $datos['Cobranza'] ?? 0;
+        $this->cantidad = isset($datos['Cantidad']) ? (int)$datos['Cantidad'] : 1;
+        if ($this->cantidad < 1) {
+            $this->cantidad = 1;
+        }
+
+        $boxIn = $datos['Box'] ?? [];
+        if (!is_array($boxIn) || count($boxIn) === 0) {
+            return $_respuestas->error_400('Debe enviar al menos un bulto en Box');
+        }
+
+        $esModoHeterogeneo = count($boxIn) > 1;
+
+        if (count($boxIn) === 1) {
+            $bultosDim = array_fill(0, $this->cantidad, $boxIn[0]);
+        } elseif (count($boxIn) === $this->cantidad) {
+            $bultosDim = array_values($boxIn);
+        } else {
+            return $_respuestas->error_400('La cantidad de bultos enviados en Box no coincide con Cantidad');
+        }
+
+        $cobranza     = $datos['Cobranza'] ?? 0;
         $codigoPostal = $datos['CodigoPostal'];
+        $servicioFlex = (($datos['Servicio'] ?? null) == 3);
 
-        // DETERMINO SI EL CLIENTE UTILIZA FLEX
-        if (($datos['Servicio'] ?? null) == 3) {
+        // Valor declarado a nivel envío: fallback para bultos que no traigan el propio.
+        $valorDeclaradoEnvio = (!isset($datos['ValorDeclarado']) || $datos['ValorDeclarado'] == 0)
+            ? 20000
+            : (float)$datos['ValorDeclarado'];
 
-            if (($codigoPostal >= '5000') && ($codigoPostal <= '5023')) {
+        $bultosResueltos = [];
+        foreach ($bultosDim as $i => $box) {
+            $length = $box['Length'] ?? null;
+            $width  = $box['Width']  ?? null;
+            $height = $box['Height'] ?? null;
+            $weight = $box['Weight'] ?? null;
 
-                $price = $this->rate_flex();
-            } else {
-                // SI NO ES FLEX CALCULO DIMENSIONES
-                $dim = $this->calc_dim($length, $width, $height, $weight);
+            $price = $this->resolverTarifaBulto($servicioFlex, $codigoPostal, $length, $width, $height, $weight);
 
-                if ($dim == 0) {
-                    return $_respuestas->error_400('Faltan datos del paquete');
-                }
-
-                $price = $this->rate($codigoPostal, $length, $width, $height, $weight);
+            if ($price === 'faltan_datos') {
+                return $_respuestas->error_400('Faltan datos del paquete en el bulto ' . ($i + 1));
             }
-        } else {
-            // NO FLEX
-            $dim = $this->calc_dim($length, $width, $height, $weight);
-
-            if ($dim == 0) {
-                return $_respuestas->error_400('Faltan datos del paquete');
-            }
-
-            $price = $this->rate($codigoPostal, $length, $width, $height, $weight);
-        }
-
-        if (!empty($price[0]['id'])) {
-
-            $respuesta_rate["result"] = array(
-                "Id"          => $price[0]['id'],
-                "Titulo"      => $price[0]['Titulo'],
-                "PrecioVenta" => $price[0]['PrecioVenta']
-            );
-            $titulo_rate = $price[0]['Titulo'];
-            $tarifa_rate = $price[0]['PrecioVenta'];
-        } else {
-
-            if ($price == 4) {
+            if ($price === 4) {
                 return $_respuestas->error_400('Error en localidad');
-            } else {
-                return $_respuestas->error_400('Error en la obtención de precio');
+            }
+            if (empty($price[0]['id'])) {
+                return $_respuestas->error_400('Error en la obtención de precio para el bulto ' . ($i + 1));
+            }
+
+            $bultosResueltos[] = [
+                'tarifa'         => (float)$price[0]['PrecioVenta'],
+                'titulo'         => $price[0]['Titulo'],
+                'length'         => $length,
+                'width'          => $width,
+                'height'         => $height,
+                'weight'         => $weight,
+                'valorDeclarado' => isset($box['ValorDeclarado']) ? (float)$box['ValorDeclarado'] : $valorDeclaradoEnvio,
+            ];
+        }
+
+        // Curva de descuento universal (clases/pricing.class.php): 1º bulto (el más
+        // caro) 100%, 2º 0%, 3º en adelante 50% c/u. Misma función que usan /rates,
+        // /rates_v2 y /rates_v3, para que cotización y cobro nunca se desalineen.
+        $bultosConDescuento = Pricing::aplicarDescuentoPorBulto($bultosResueltos, 'tarifa');
+
+        // Bulto representante = el más caro (el mismo que queda en 100% en la curva).
+        // Alimenta los campos legacy de un solo bulto (Titulo/Tarifa/Length/Width/Height).
+        // En modo legacy (bultos idénticos) da exactamente el resultado de siempre.
+        $indiceRepresentante = 0;
+        $tarifaMax = -INF;
+        foreach ($bultosResueltos as $i => $b) {
+            if ($b['tarifa'] > $tarifaMax) {
+                $tarifaMax = $b['tarifa'];
+                $indiceRepresentante = $i;
             }
         }
+        $representante = $bultosResueltos[$indiceRepresentante];
+        $titulo_rate   = $representante['titulo'];
+        $tarifa_rate   = $representante['tarifa'];
+        $length        = $representante['length'];
+        $width         = $representante['width'];
+        $height        = $representante['height'];
+        $weight        = $representante['weight'];
 
         // WEBHOOK (si viene)
         if (!empty($datos['WebHook'])) {
@@ -570,9 +606,6 @@ class servicios extends conexion
             $this->Observaciones = $Obs_api . ' ' . $respuesta_actualizacion;
         }
 
-        // CANTIDAD
-        $this->cantidad = isset($datos['Cantidad']) ? (int)$datos['Cantidad'] : 1;
-
         // SERVICIO
         if (isset($datos['Servicio']) && $datos['Servicio'] == 3) {
             $this->servicio = 0;
@@ -580,12 +613,9 @@ class servicios extends conexion
             $this->servicio = 1;
         }
 
-        // VALOR DECLARADO
-        if (!isset($datos['ValorDeclarado']) || $datos['ValorDeclarado'] == 0) {
-            $this->valordec = 20000;
-        } else {
-            $this->valordec = $datos['ValorDeclarado'];
-        }
+        // VALOR DECLARADO: suma de los declarados efectivos de cada bulto
+        // (en modo legacy con 1 solo bulto real, coincide con el valor de siempre).
+        $this->valordec = array_sum(array_column($bultosConDescuento, 'valorDeclarado'));
 
         // ID PROVEEDOR
         if (isset($datos['idProveedor'])) {
@@ -596,7 +626,7 @@ class servicios extends conexion
         $enviar_mail = !empty($datos['EnviarMail']);
 
         // INSERTAR VENTA
-        $venta = $this->insertarVenta($tarifa_rate, $titulo_rate, $length, $width, $height, $weight, $cobranza, $enviar_mail);
+        $venta = $this->insertarVenta($bultosConDescuento, $titulo_rate, $tarifa_rate, $cobranza, $enviar_mail);
 
         if (!$venta || empty($venta['id_preventa'])) {
             return $_respuestas->error_500();
@@ -606,9 +636,33 @@ class servicios extends conexion
 
         $citydestination = isset($date[0]['Localidad']) ? $date[0]['Localidad'] : '';
         $send_date       = isset($date[0]['DiaSalida']) ? $date[0]['DiaSalida'] : '';
-        $Total             = $this->cantidad * floatval($tarifa_rate);
+        $Total             = array_sum(array_column($bultosConDescuento, 'precioAplicado'));
         $tarifa_rate_label = round($tarifa_rate);
         $total_label       = round($Total);
+
+        // "Box" en la respuesta: en modo legacy (1 solo bulto real) se mantiene
+        // como objeto único, igual que siempre. En modo heterogéneo se devuelve
+        // el detalle de cada bulto.
+        if ($esModoHeterogeneo) {
+            $boxRespuesta = array_map(function ($b) {
+                return array(
+                    "Length"         => $b['length'],
+                    "Width"          => $b['width'],
+                    "Height"         => $b['height'],
+                    "Weight"         => $b['weight'],
+                    "ValorDeclarado" => $b['valorDeclarado'],
+                    "Tarifa_Lista"   => round($b['tarifa']),
+                    "Tarifa"         => round($b['precioAplicado']),
+                );
+            }, $bultosConDescuento);
+        } else {
+            $boxRespuesta = array(
+                "Length" => $length,
+                "Width"  => $width,
+                "Height" => $height,
+                "Weight" => $weight
+            );
+        }
 
         $respuesta = $_respuestas->response;
 
@@ -641,12 +695,7 @@ class servicios extends conexion
                 "Cantidad"     => $this->cantidad
             ),
 
-            "Box" => array(
-                "Length" => $length,
-                "Width"  => $width,
-                "Height" => $height,
-                "Weight" => $weight
-            ),
+            "Box" => $boxRespuesta,
 
             "Cobranza"       => $cobranza,
             "Servicio"       => $this->servicio,
@@ -655,6 +704,22 @@ class servicios extends conexion
         );
 
         return $respuesta;
+    }
+
+    // Resuelve la tarifa de UN bulto (extraído de la lógica que antes vivía
+    // inline en post() para un solo Box[0]; ahora se llama una vez por bulto).
+    private function resolverTarifaBulto($esFlex, $codigoPostal, $length, $width, $height, $weight)
+    {
+        if ($esFlex && ($codigoPostal >= '5000') && ($codigoPostal <= '5023')) {
+            return $this->rate_flex();
+        }
+
+        $dim = $this->calc_dim($length, $width, $height, $weight);
+        if ($dim == 0) {
+            return 'faltan_datos';
+        }
+
+        return $this->rate($codigoPostal, $length, $width, $height, $weight);
     }
 
     //CALCULO DIMENSIONES
@@ -831,7 +896,7 @@ class servicios extends conexion
 
 
 
-    private function insertarVenta($tarifa_rate, $titulo_rate, $length, $width, $height, $weight, $cobranza, $enviar_mail)
+    private function insertarVenta(array $bultos, $titulo_rate, $tarifa_rate, $cobranza, $enviar_mail)
     {
 
         // LUEGO CARGO LA VENTA
@@ -844,7 +909,22 @@ class servicios extends conexion
         // $Cantidad = $_POST['Cant'];
         $DatoNV = $_POST['NV'] ?? '';
         $Precio = floatval($tarifa_rate);
-        $Total = $this->cantidad * $Precio;
+        $Total  = array_sum(array_column($bultos, 'precioAplicado'));
+        $WeightTotal = array_sum(array_column($bultos, 'weight'));
+
+        // Bulto representante = el que quedó al 100% en la curva de descuento
+        // (el más caro) — alimenta las columnas Length/Width/Height, pensadas
+        // para un solo bulto. En modo legacy (bultos idénticos) da lo mismo de siempre.
+        $representante = $bultos[0];
+        foreach ($bultos as $b) {
+            if (abs(($b['porcentajeAplicado'] ?? 0) - 1.0) < 0.0001) {
+                $representante = $b;
+                break;
+            }
+        }
+        $length = $representante['length'];
+        $width  = $representante['width'];
+        $height = $representante['height'];
 
         $direccion = $this->direccion;
         $ciudad = $this->ciudad;
@@ -897,13 +977,48 @@ class servicios extends conexion
         $CodigoSeguimiento = parent::generarCodigo(9);
         $this->CodigoSeguimiento = $CodigoSeguimiento;
 
+        // Salvaguarda para producción: crea la tabla de detalle de bultos si
+        // todavía no existe (operación barata cuando ya existe). El DDL
+        // "oficial" se corre a mano por phpMyAdmin antes del deploy; esto es
+        // solo para que nunca falle si alguien se olvida de ese paso.
+        parent::nonQuery(
+            "CREATE TABLE IF NOT EXISTS `PreVentaBultos` (
+                `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `CodigoSeguimiento` VARCHAR(9) NOT NULL,
+                `Indice` TINYINT UNSIGNED NOT NULL,
+                `Length` DECIMAL(10,4) NOT NULL,
+                `Width` DECIMAL(10,4) NOT NULL,
+                `Height` DECIMAL(10,4) NOT NULL,
+                `Weight` DECIMAL(10,3) NOT NULL,
+                `ValorDeclarado` DECIMAL(12,2) NOT NULL DEFAULT 0,
+                `PorcentajeAplicado` DECIMAL(4,3) NOT NULL,
+                `PrecioAplicado` DECIMAL(12,2) NOT NULL,
+                `Fecha` DATETIME NOT NULL,
+                PRIMARY KEY (`id`),
+                KEY `idx_codigoseguimiento` (`CodigoSeguimiento`),
+                UNIQUE KEY `uq_codigo_indice` (`CodigoSeguimiento`, `Indice`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8"
+        );
+
+        foreach ($bultos as $i => $b) {
+            $query_bulto = "INSERT INTO `PreVentaBultos`
+                (`CodigoSeguimiento`,`Indice`,`Length`,`Width`,`Height`,`Weight`,
+                 `ValorDeclarado`,`PorcentajeAplicado`,`PrecioAplicado`,`Fecha`)
+                VALUES ('" . $CodigoSeguimiento . "','" . ($i + 1) . "',
+                '" . parent::escapar($b['length']) . "','" . parent::escapar($b['width']) . "',
+                '" . parent::escapar($b['height']) . "','" . parent::escapar($b['weight']) . "',
+                '" . parent::escapar($b['valorDeclarado']) . "','" . parent::escapar($b['porcentajeAplicado']) . "',
+                '" . parent::escapar($b['precioAplicado']) . "','" . $Fecha . "')";
+            parent::nonQuery($query_bulto);
+        }
+
         $query_preventa = "INSERT INTO `PreVenta`(`Fecha`, `RazonSocial`, `NCliente`, `TipoDeComprobante`, `NumeroComprobante`, `Cantidad`,`Precio`,`Total`,
         `ClienteDestino`, `idClienteDestino`, `DomicilioDestino`, `LocalidadDestino`,`NumeroVenta`, `DomicilioOrigen`,`LocalidadOrigen`, `Usuario`,
         `EntregaEn`,`Observaciones`,`Hora`,`Telefono`,`Celular`,`Retirado`,`ValorDeclarado`,`idProveedor`,`Length`, `Width`, `Height`, `Weight`,`cpdestino`,`Cobranza`,`CodigoSeguimiento`)VALUES
         ('" . $Fecha . "','" . parent::escapar($this->ClienteOrigen) . "','" . parent::escapar($this->idClienteOrigen) . "','" . parent::escapar($titulo_rate) . "','"  . $Codigo . "','" . $this->cantidad . "','" . $Precio . "','" . $Total . "','" . $ClienteDestinoSql . "',
         '" . parent::escapar($idClienteDestino) . "','" . $direccionSql . "','" . $ciudadSql . "','" . parent::escapar($DatoNV) . "','" . $DireccionClienteOrigenSql . "','Cordoba','" . parent::escapar($this->token) . "',
         'Domicilio','" . parent::escapar($this->Observaciones) . "','" . $Hora . "','" . parent::escapar($this->telefono) . "','" . parent::escapar($this->telefono) . "','" . $this->servicio . "','" . parent::escapar($this->valordec) . "','" . parent::escapar($this->idproveedor) . "',
-        '" . parent::escapar($length) . "','" . parent::escapar($width) . "','" . parent::escapar($height) . "','" . parent::escapar($weight) . "','" . parent::escapar($this->codigoPostal) . "','" . parent::escapar($cobranza) . "','" . $CodigoSeguimiento . "')";
+        '" . parent::escapar($length) . "','" . parent::escapar($width) . "','" . parent::escapar($height) . "','" . parent::escapar($WeightTotal) . "','" . parent::escapar($this->codigoPostal) . "','" . parent::escapar($cobranza) . "','" . $CodigoSeguimiento . "')";
 
         $resp_preventa = parent::nonQueryId($query_preventa);
         $codigoPostal = $this->codigoPostal;
