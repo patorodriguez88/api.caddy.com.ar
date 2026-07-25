@@ -664,6 +664,17 @@ class servicios extends conexion
             );
         }
 
+        // Sugerencia informativa: si mandó bultos idénticos (1 solo elemento en
+        // Box) pero Cantidad>1, avisamos que puede declarar cada bulto por
+        // separado. No es un error, no cambia nada más en la respuesta.
+        $sugerencia = null;
+        if (!$esModoHeterogeneo && $this->cantidad > 1) {
+            $sugerencia = 'Este envío se cargó con ' . $this->cantidad . ' bultos idénticos '
+                . '(mismas dimensiones). Si tus bultos tienen tamaños distintos, podés declarar '
+                . 'cada uno por separado enviando ' . $this->cantidad . ' elementos en "Box", '
+                . 'uno por bulto, para un cálculo de tarifa más preciso.';
+        }
+
         $respuesta = $_respuestas->response;
 
         $respuesta["result"] = array(
@@ -702,6 +713,10 @@ class servicios extends conexion
             "ValorDeclarado" => $this->valordec,
             "EnviarMail"     => $enviar_mail
         );
+
+        if ($sugerencia !== null) {
+            $respuesta["result"]["Sugerencia"] = $sugerencia;
+        }
 
         return $respuesta;
     }
@@ -977,35 +992,17 @@ class servicios extends conexion
         $CodigoSeguimiento = parent::generarCodigo(9);
         $this->CodigoSeguimiento = $CodigoSeguimiento;
 
-        // Salvaguarda para producción: crea la tabla de detalle de bultos si
-        // todavía no existe (operación barata cuando ya existe). El DDL
-        // "oficial" se corre a mano por phpMyAdmin antes del deploy; esto es
-        // solo para que nunca falle si alguien se olvida de ese paso.
+        // El usuario de la app (dinter6_usuarioweb) no tiene privilegio CREATE
+        // (confirmado en producción/sandbox: "CREATE command denied"), y MySQL
+        // chequea ese permiso ANTES de fijarse si la tabla ya existe, así que
+        // `CREATE TABLE IF NOT EXISTS` fallaría siempre, exista o no la tabla.
+        // La tabla se crea una única vez a mano (DDL en el DDL de despliegue),
+        // acá no se reintenta más para no generar ruido en el log en cada request.
         //
-        // Todo este bloque va en try/catch: es información complementaria
-        // (detalle por bulto), no debe poder tirar abajo la creación de la
-        // venta real si el motor de DB tira una excepción (falta de permisos,
-        // mysqli en modo estricto, etc.) — se registra el error y se sigue.
+        // El INSERT del detalle por bulto va en su propio try/catch: es
+        // información complementaria, no debe poder tirar abajo la creación
+        // de la venta real si falla por lo que sea.
         try {
-            parent::nonQuery(
-                "CREATE TABLE IF NOT EXISTS `PreVentaBultos` (
-                    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-                    `CodigoSeguimiento` VARCHAR(9) NOT NULL,
-                    `Indice` TINYINT UNSIGNED NOT NULL,
-                    `Length` DECIMAL(10,4) NOT NULL,
-                    `Width` DECIMAL(10,4) NOT NULL,
-                    `Height` DECIMAL(10,4) NOT NULL,
-                    `Weight` DECIMAL(10,3) NOT NULL,
-                    `ValorDeclarado` DECIMAL(12,2) NOT NULL DEFAULT 0,
-                    `PorcentajeAplicado` DECIMAL(4,3) NOT NULL,
-                    `PrecioAplicado` DECIMAL(12,2) NOT NULL,
-                    `Fecha` DATETIME NOT NULL,
-                    PRIMARY KEY (`id`),
-                    KEY `idx_codigoseguimiento` (`CodigoSeguimiento`),
-                    UNIQUE KEY `uq_codigo_indice` (`CodigoSeguimiento`, `Indice`)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8"
-            );
-
             foreach ($bultos as $i => $b) {
                 $query_bulto = "INSERT INTO `PreVentaBultos`
                     (`CodigoSeguimiento`,`Indice`,`Length`,`Width`,`Height`,`Weight`,
