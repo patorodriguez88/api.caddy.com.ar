@@ -109,6 +109,7 @@ class servicios extends conexion
         }
 
         $listaIds = implode(',', array_map('intval', $idsPermitidos));
+        $estado   = parent::escapar($estado);
 
         $query = "SELECT Fecha,CodigoSeguimiento,NumeroComprobante,RazonSocial,ClienteDestino,DomicilioDestino,Estado,CodigoProveedor as idProveedor
                   FROM " . $this->tableTrans . "
@@ -181,11 +182,13 @@ class servicios extends conexion
             return $_respuestas->error_401('Cliente no asociado al token');
         }
 
+        $id = parent::escapar($id);
+
         // ==============================
         // 1) Determinar dueño del envío
         //    (TransClientes.IngBrutosOrigen)
         // ==============================
-        $queryEnvio = "SELECT IngBrutosOrigen 
+        $queryEnvio = "SELECT IngBrutosOrigen
                    FROM " . $this->tableTrans . " 
                    WHERE CodigoSeguimiento = '" . $id . "'
                    LIMIT 1";
@@ -324,6 +327,8 @@ class servicios extends conexion
             return $_respuestas->error_401('Cliente no asociado al token');
         }
 
+        $id = parent::escapar($id);
+
         // Busco el envío por CódigoProveedor
         $query = "SELECT IngBrutosOrigen,CodigoSeguimiento FROM " . $this->tableTrans . " WHERE CodigoProveedor = '" . $id . "'";
         $datos = parent::obtenerDatos($query);
@@ -333,7 +338,7 @@ class servicios extends conexion
         }
 
         $id2   = (int)$datos[0]['IngBrutosOrigen'];
-        $id2Cs = $datos[0]['CodigoSeguimiento'];
+        $id2Cs = parent::escapar($datos[0]['CodigoSeguimiento']);
 
         // Si el envío pertenece a otro cliente, verifico relación / permisos
         if ($id2 !== $idClienteOrigen) {
@@ -699,7 +704,7 @@ class servicios extends conexion
             $dist = 1;
         } else {
 
-            $query_dist = "SELECT Km FROM Localidades WHERE Cp='" . $codigoPostal . "'";
+            $query_dist = "SELECT Km FROM Localidades WHERE Cp='" . parent::escapar($codigoPostal) . "'";
 
             $resp_dist = parent::obtenerDatos($query_dist);
 
@@ -743,9 +748,9 @@ class servicios extends conexion
             $Localidad = '5000';
         }
 
-        $query = "SELECT DiaSalida, Localidad 
-              FROM Localidades 
-              WHERE Cp = '" . $Localidad . "'
+        $query = "SELECT DiaSalida, Localidad
+              FROM Localidades
+              WHERE Cp = '" . parent::escapar($Localidad) . "'
               LIMIT 1";
 
         $resp = parent::obtenerDatos($query);
@@ -760,6 +765,8 @@ class servicios extends conexion
     //WEBHOOK
     public function webhook($webhook, $webhook_id)
     {
+        $webhook    = parent::escapar($webhook);
+        $webhook_id = parent::escapar($webhook_id);
 
         $query = "SELECT Endpoint FROM Webhook WHERE idCliente = '" . $webhook_id . "'";
 
@@ -780,12 +787,17 @@ class servicios extends conexion
 
     private function clienteOrigenRelacion($idUsuario, $idProveedor, $NombreOrigen, $DireccionOrigen)
     {
+        // Copias escapadas solo para armar SQL; $NombreOrigen/$DireccionOrigen
+        // se mantienen intactas para las comparaciones contra los datos de la BD.
+        $idProveedorSql  = parent::escapar($idProveedor);
+        $NombreOrigenSql = parent::escapar($NombreOrigen);
 
         $query = "SELECT NdeCliente FROM usuarios WHERE id = '" . $idUsuario . "'";
         $resp0 = parent::obtenerDatos($query);
         $DireccionOrigen_utf = $DireccionOrigen;
+        $DireccionOrigenSql  = parent::escapar($DireccionOrigen);
 
-        $query = "SELECT nombrecliente,id,Direccion FROM Clientes WHERE Relacion= '" . $resp0[0]['NdeCliente'] . "' AND idProveedor = '" . $idProveedor . "'";
+        $query = "SELECT nombrecliente,id,Direccion FROM Clientes WHERE Relacion= '" . $resp0[0]['NdeCliente'] . "' AND idProveedor = '" . $idProveedorSql . "'";
         $resp = parent::obtenerDatos($query);
         //ENCUENTRO EL CLIENTE RELACIONADO CON LA RELACION Y EL IDPROVEEDOR
         if ($resp[0]['id']) {
@@ -802,11 +814,11 @@ class servicios extends conexion
             }
         } else {
 
-            //COMO NO ENCONTRE EL CLIENTE RELACIONADO CONSULTO EN LA PRIMERA POSIBILIDAD CON NOMBRE Y DIRECCION...  
-            $query = "SELECT nombrecliente,id,Direccion FROM Clientes WHERE nombrecliente = '" . $NombreOrigen . "' AND Direccion like '%" . $DireccionOrigen_utf . "%'"; //utf8_decode
+            //COMO NO ENCONTRE EL CLIENTE RELACIONADO CONSULTO EN LA PRIMERA POSIBILIDAD CON NOMBRE Y DIRECCION...
+            $query = "SELECT nombrecliente,id,Direccion FROM Clientes WHERE nombrecliente = '" . $NombreOrigenSql . "' AND Direccion like '%" . $DireccionOrigenSql . "%'"; //utf8_decode
             $resp1 = parent::obtenerDatos($query);
             if ($resp1[0]['id']) {
-                $query = "UPDATE Clientes SET idProveedor = '" . $idProveedor . "' WHERE nombrecliente = '" . $NombreOrigen . "' AND Direccion like '%" . $DireccionOrigen_utf . "%' ";
+                $query = "UPDATE Clientes SET idProveedor = '" . $idProveedorSql . "' WHERE nombrecliente = '" . $NombreOrigenSql . "' AND Direccion like '%" . $DireccionOrigenSql . "%' ";
                 $resp = parent::nonQuery($query);
                 if ($resp >= 1) {
                     return $resp1;
@@ -839,8 +851,16 @@ class servicios extends conexion
         $DireccionClienteOrigen = (string)($this->DireccionClienteOrigen ?? '');
         $ClienteDestino = $this->nombre;
 
+        // Copias escapadas para armar SQL. Las variables/propiedades originales
+        // de arriba se mantienen sin escapar para lógica, comparaciones y la
+        // respuesta JSON al cliente.
+        $direccionSql               = parent::escapar($direccion);
+        $ciudadSql                  = parent::escapar($ciudad);
+        $DireccionClienteOrigenSql  = parent::escapar($DireccionClienteOrigen);
+        $ClienteDestinoSql          = parent::escapar($ClienteDestino);
+
         //BUSCO EL CLIENTE DESTINO
-        $query = "SELECT id,Observaciones FROM Clientes WHERE nombrecliente = '" . $ClienteDestino . "' AND Direccion = '" . $direccion . "' LIMIT 1";
+        $query = "SELECT id,Observaciones FROM Clientes WHERE nombrecliente = '" . $ClienteDestinoSql . "' AND Direccion = '" . $direccionSql . "' LIMIT 1";
         $resp = parent::obtenerDatos($query);
 
         if ($resp) {
@@ -854,7 +874,7 @@ class servicios extends conexion
                 //SI LAS OBSERVACIONES QUE ME ENVIA EL CLIENTE DIFIEREN DE LAS QUE TENGO EN LA BD, ACTUALIZO LAS OBSERVACIONES
                 if ($resp[0]['Observaciones'] <> $this->Observaciones_clean) {
 
-                    $query = "UPDATE Clientes SET Observaciones = '" . $this->Observaciones_clean . "' WHERE id = '" . $idClienteDestino . "' LIMIT 1";
+                    $query = "UPDATE Clientes SET Observaciones = '" . parent::escapar($this->Observaciones_clean) . "' WHERE id = '" . parent::escapar($idClienteDestino) . "' LIMIT 1";
                     $resp = parent::nonQuery($query);
                 }
             }
@@ -866,8 +886,8 @@ class servicios extends conexion
             $NewidCliente = trim($respmax[0]['id']) + 1;
 
             $query = "INSERT INTO Clientes (NdeCliente,nombrecliente,Direccion,Ciudad,Telefono,Celular,Celular2,Cuit,Relacion,Pais,Mail,CodigoPostal,Observaciones)VALUES
-    ('" . $NewidCliente . "','" . $ClienteDestino . "','" . $direccion . "','" . $ciudad . "','" . $this->telefono . "','" . $this->telefono . "',
-    '" . $this->telefono . "','" . $this->dni . "','" . $this->idClienteOrigen . "','Argentina','" . $this->email . "','" . $this->codigoPostal . "','" . $this->Observaciones . "')";
+    ('" . $NewidCliente . "','" . $ClienteDestinoSql . "','" . $direccionSql . "','" . $ciudadSql . "','" . parent::escapar($this->telefono) . "','" . parent::escapar($this->telefono) . "',
+    '" . parent::escapar($this->telefono) . "','" . parent::escapar($this->dni) . "','" . parent::escapar($this->idClienteOrigen) . "','Argentina','" . parent::escapar($this->email) . "','" . parent::escapar($this->codigoPostal) . "','" . parent::escapar($this->Observaciones) . "')";
 
             $respclientes = parent::nonQueryId($query);
             $idClienteDestino = $respclientes;
@@ -880,10 +900,10 @@ class servicios extends conexion
         $query_preventa = "INSERT INTO `PreVenta`(`Fecha`, `RazonSocial`, `NCliente`, `TipoDeComprobante`, `NumeroComprobante`, `Cantidad`,`Precio`,`Total`,
         `ClienteDestino`, `idClienteDestino`, `DomicilioDestino`, `LocalidadDestino`,`NumeroVenta`, `DomicilioOrigen`,`LocalidadOrigen`, `Usuario`,
         `EntregaEn`,`Observaciones`,`Hora`,`Telefono`,`Celular`,`Retirado`,`ValorDeclarado`,`idProveedor`,`Length`, `Width`, `Height`, `Weight`,`cpdestino`,`Cobranza`,`CodigoSeguimiento`)VALUES
-        ('" . $Fecha . "','" . $this->ClienteOrigen . "','" . $this->idClienteOrigen . "','" . $titulo_rate . "','"  . $Codigo . "','" . $this->cantidad . "','" . $Precio . "','" . $Total . "','" . $ClienteDestino . "',
-        '" . $idClienteDestino . "','" . $direccion . "','" . $ciudad . "','" . $DatoNV . "','" . $DireccionClienteOrigen . "','Cordoba','" . $this->token . "',
-        'Domicilio','" . $this->Observaciones . "','" . $Hora . "','" . $this->telefono . "','" . $this->telefono . "','" . $this->servicio . "','" . $this->valordec . "','" . $this->idproveedor . "',
-        '" . $length . "','" . $width . "','" . $height . "','" . $weight . "','" . $this->codigoPostal . "','" . $cobranza . "','" . $CodigoSeguimiento . "')";
+        ('" . $Fecha . "','" . parent::escapar($this->ClienteOrigen) . "','" . parent::escapar($this->idClienteOrigen) . "','" . parent::escapar($titulo_rate) . "','"  . $Codigo . "','" . $this->cantidad . "','" . $Precio . "','" . $Total . "','" . $ClienteDestinoSql . "',
+        '" . parent::escapar($idClienteDestino) . "','" . $direccionSql . "','" . $ciudadSql . "','" . parent::escapar($DatoNV) . "','" . $DireccionClienteOrigenSql . "','Cordoba','" . parent::escapar($this->token) . "',
+        'Domicilio','" . parent::escapar($this->Observaciones) . "','" . $Hora . "','" . parent::escapar($this->telefono) . "','" . parent::escapar($this->telefono) . "','" . $this->servicio . "','" . parent::escapar($this->valordec) . "','" . parent::escapar($this->idproveedor) . "',
+        '" . parent::escapar($length) . "','" . parent::escapar($width) . "','" . parent::escapar($height) . "','" . parent::escapar($weight) . "','" . parent::escapar($this->codigoPostal) . "','" . parent::escapar($cobranza) . "','" . $CodigoSeguimiento . "')";
 
         $resp_preventa = parent::nonQueryId($query_preventa);
         $codigoPostal = $this->codigoPostal;
@@ -1020,7 +1040,7 @@ class servicios extends conexion
 
     private function buscarToken()
     {
-        $query = "SELECT TokenId,UsuarioId,Estado from usuarios_token WHERE Token = '" . $this->token . "' AND Estado = 'Activo'";
+        $query = "SELECT TokenId,UsuarioId,Estado from usuarios_token WHERE Token = '" . parent::escapar($this->token) . "' AND Estado = 'Activo'";
         $resp = parent::obtenerDatos($query);
 
         if ($resp) {
