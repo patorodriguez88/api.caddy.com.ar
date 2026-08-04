@@ -1,9 +1,4 @@
 <?php
-// Endpoint de recepción "fast-ack" para los webhooks de Meli reenviados por
-// notificaciones_ml.v2 (Api-sistemacaddy.com.ar-). No procesa nada: solo
-// encola el payload y responde. El procesamiento pesado (el que hoy hace
-// webhook_ml.class.php) lo hace worker.php de forma asincrónica.
-
 require_once __DIR__ . '/../../conexion/conexion.php';
 
 class MeliQueueReceiver extends conexion
@@ -35,19 +30,3 @@ class MeliQueueReceiver extends conexion
         return ['ok' => 1, 'queued_id' => $id];
     }
 }
-
-header('Content-Type: application/json');
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['ok' => 0, 'error' => 'Method not allowed']);
-    exit;
-}
-
-$postBody = file_get_contents('php://input');
-
-$receiver = new MeliQueueReceiver();
-$resultado = $receiver->encolar($postBody);
-
-http_response_code($resultado['ok'] === 1 ? 200 : 400);
-echo json_encode($resultado);

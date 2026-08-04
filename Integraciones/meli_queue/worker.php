@@ -6,9 +6,6 @@
 require_once __DIR__ . '/../../conexion/conexion.php';
 require_once __DIR__ . '/../../clases/webhook_ml.class.php'; // define class auth (login() sin modificar)
 
-// Cambiar por un valor propio antes de exponer worker.php por HTTP en un cron de cPanel.
-const MELI_QUEUE_WORKER_SECRET = '';
-
 class MeliQueueWorker extends conexion
 {
     private const LOTE = 20;
@@ -64,24 +61,13 @@ class MeliQueueWorker extends conexion
     }
 }
 
-$esCLI = (php_sapi_name() === 'cli');
-
-if (!$esCLI) {
-    $secreto = $_GET['secret'] ?? '';
-    if (MELI_QUEUE_WORKER_SECRET === '' || $secreto !== MELI_QUEUE_WORKER_SECRET) {
-        http_response_code(403);
-        echo json_encode(['ok' => 0, 'error' => 'No autorizado']);
-        exit;
-    }
-    header('Content-Type: application/json');
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    exit('Solo se ejecuta por CLI/cron.');
 }
 
 $handler = new auth();
 $worker = new MeliQueueWorker();
 $resumen = $worker->procesarLote($handler);
 
-if ($esCLI) {
-    echo json_encode($resumen, JSON_PRETTY_PRINT) . PHP_EOL;
-} else {
-    echo json_encode($resumen);
-}
+echo json_encode($resumen, JSON_PRETTY_PRINT) . PHP_EOL;
