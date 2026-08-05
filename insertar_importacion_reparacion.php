@@ -29,8 +29,15 @@ if ($control && $control->fetch_assoc()) {
     exit;
 }
 
-$sql = "INSERT INTO Importaciones (Fecha, RazonSocial, NCliente, TipoDeComprobante, NumeroComprobante, Cantidad, Precio, Total, ClienteDestino, idClienteDestino, DocumentoDestino, DomicilioDestino, LocalidadDestino, CodigoSeguimiento, NumeroVenta, DomicilioOrigen, LocalidadOrigen, Usuario, Cargado, FormaDePago, EntregaEn, Eliminado, Observaciones, Transportista, Recorrido, ProvinciaDestino, ProvinciaOrigen, Kilometros, TimeStamp, Hora, idProveedor, FechaEntrega, Cobranza, Retirado, ValorDeclarado, Telefono, Celular, Length, Width, Height, Weight, cpdestino, dni_destino, mail_destino, Flex, Meli, Status, order_id, logistic_type, shipments_id, date_created, estimated_delivery_time, tracking_method, agency_description, description)
-        VALUES ('{$item['Fecha']}', '{$item['RazonSocial']}', '{$item['NCliente']}', '{$item['TipoDeComprobante']}', '{$item['NumeroComprobante']}', '{$item['Cantidad']}', '{$item['Precio']}', '{$item['Total']}', '{$item['ClienteDestino']}', '{$item['idClienteDestino']}', '{$item['DocumentoDestino']}', '{$item['DomicilioDestino']}', '{$item['LocalidadDestino']}', '{$item['CodigoSeguimiento']}', '{$item['NumeroVenta']}', '{$item['DomicilioOrigen']}', '{$item['LocalidadOrigen']}', '{$item['Usuario']}', '{$item['Cargado']}', '{$item['FormaDePago']}', '{$item['EntregaEn']}', '{$item['Eliminado']}', '{$item['Observaciones']}', '{$item['Transportista']}', '{$item['Recorrido']}', '{$item['ProvinciaDestino']}', '{$item['ProvinciaOrigen']}', '{$item['Kilometros']}', '{$item['TimeStamp']}', '{$item['Hora']}', '{$item['idProveedor']}', '{$item['FechaEntrega']}', '{$item['Cobranza']}', '{$item['Retirado']}', '{$item['ValorDeclarado']}', '{$item['Telefono']}', '{$item['Celular']}', '{$item['Length']}', '{$item['Width']}', '{$item['Height']}', '{$item['Weight']}', '{$item['cpdestino']}', '{$item['dni_destino']}', '{$item['mail_destino']}', '{$item['Flex']}', '{$item['Meli']}', '{$item['Status']}', '{$item['order_id']}', '{$item['logistic_type']}', '{$item['shipments_id']}', '{$item['date_created']}', '{$item['estimated_delivery_time']}', '{$item['tracking_method']}', '{$item['agency_description']}', '{$item['description']}')";
+$columnas = ['Fecha', 'RazonSocial', 'NCliente', 'TipoDeComprobante', 'NumeroComprobante', 'Cantidad', 'Precio', 'Total', 'ClienteDestino', 'idClienteDestino', 'DocumentoDestino', 'DomicilioDestino', 'LocalidadDestino', 'CodigoSeguimiento', 'NumeroVenta', 'DomicilioOrigen', 'LocalidadOrigen', 'Usuario', 'Cargado', 'FormaDePago', 'EntregaEn', 'Eliminado', 'Observaciones', 'Transportista', 'Recorrido', 'ProvinciaDestino', 'ProvinciaOrigen', 'Kilometros', 'TimeStamp', 'Hora', 'idProveedor', 'FechaEntrega', 'Cobranza', 'Retirado', 'ValorDeclarado', 'Telefono', 'Celular', 'Length', 'Width', 'Height', 'Weight', 'cpdestino', 'dni_destino', 'mail_destino', 'Flex', 'Meli', 'Status', 'order_id', 'logistic_type', 'shipments_id', 'date_created', 'estimated_delivery_time', 'tracking_method', 'agency_description', 'description'];
+
+$valores = [];
+foreach ($columnas as $col) {
+    $val = $item[$col] ?? null;
+    $valores[] = $val === null ? 'NULL' : "'" . $mysqli->real_escape_string((string)$val) . "'";
+}
+
+$sql = "INSERT INTO Importaciones (`" . implode('`,`', $columnas) . "`) VALUES (" . implode(',', $valores) . ")";
 
 if (!$mysqli->query($sql)) {
     echo json_encode(['ok' => 0, 'error' => $mysqli->error]);
