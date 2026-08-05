@@ -6,7 +6,7 @@ require_once __DIR__ . '/Integraciones/meli_queue/MeliQueueWorker.class.php';
 
 const CRON_WORKER_SECRET = 'k7Rw2xVq9pLm4Zts8Jyn3Bhc6Fda1Uop';
 
-$secreto = $_GET['secret'] ?? '';
+$secreto = $_POST['secret'] ?? $_GET['secret'] ?? '';
 if ($secreto !== CRON_WORKER_SECRET) {
     http_response_code(403);
     echo json_encode(['ok' => 0, 'error' => 'No autorizado']);
