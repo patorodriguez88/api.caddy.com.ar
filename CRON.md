@@ -10,10 +10,19 @@ de estas URLs, lo que hacía que el job pareciera correr sin hacer nada.
 
 ## Jobs activos
 
-| Qué dispara | Archivo | Sitio |
-|---|---|---|
-| Worker de la cola de MercadoLibre | `cron_worker.php` | api.caddy.com.ar |
-| Envío de webhooks pendientes (`Webhook_notifications`) | `cron_webhooks.php` | api.caddy.com.ar |
+| Qué dispara | URL completa |
+|---|---|
+| Worker de la cola de MercadoLibre | `https://api.caddy.com.ar/api/cron_worker.php` |
+| Envío de webhooks pendientes (`Webhook_notifications`) | `https://api.caddy.com.ar/api/cron_webhooks.php` |
+
+**Ojo con el `/api/` en la URL**: el Document Root del dominio es `/home/dinter6/api.caddy.com.ar`,
+pero la cuenta FTP que usa el deploy (`api@api.caddy.com.ar`) tiene su home un nivel más
+adentro, en `/home/dinter6/api.caddy.com.ar/api` — así que todo lo que se sube por FTP
+queda public en `https://api.caddy.com.ar/api/<archivo>.php`, **no** en
+`https://api.caddy.com.ar/<archivo>.php`. Cualquier cron o integración nueva que le pegue a
+este dominio tiene que usar el prefijo `/api/`, si no da 404 aunque el archivo esté bien
+deployado (así se rompió `cron_webhooks.php`: cron-job.org se configuró con la URL sin
+`/api/`, dio 404 en cada corrida y terminó autodeshabilitado tras 26 fallos).
 
 El envío de webhooks vive acá (no en sistema.caddy.com.ar) porque es un evento de API
 saliente hacia un partner externo (Wepoint, etc.) — api.caddy.com.ar es el subdominio
