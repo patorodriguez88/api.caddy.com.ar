@@ -6,6 +6,7 @@ $_respuestas = new respuestas;
 $_warehouse  = new warehouse();
 
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store'); // respuesta dinámica: que ningún proxy la cachee
 
 // ==========================
 // POST

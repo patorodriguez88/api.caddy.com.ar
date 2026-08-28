@@ -9,6 +9,8 @@ require_once 'clases/respuestas.class.php';
 $_auth = new auth;
 $_respuestas = new respuestas;
 
+header('Cache-Control: no-store'); // respuesta dinámica: que ningún proxy la cachee
+
 if ($_SERVER['REQUEST_METHOD'] == "POST") {
 
     //recibir datos

@@ -7,6 +7,8 @@ require_once 'libs/phpqrcode/qrlib.php';
 
 $_respuestas = new respuestas;
 
+header('Cache-Control: no-store'); // respuesta dinámica: que ningún proxy la cachee
+
 
 class EtiquetaService extends conexion
 {

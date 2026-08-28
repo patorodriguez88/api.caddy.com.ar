@@ -8,6 +8,8 @@ require_once __DIR__ . '/clases/token.class.php';
 $_respuestas = new respuestas();
 $_servicios  = new servicios();
 
+header('Cache-Control: no-store'); // respuesta dinámica: que ningún proxy la cachee
+
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {

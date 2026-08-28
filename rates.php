@@ -9,6 +9,7 @@ $_respuestas = new respuestas();
 $rates       = new Rates();
 
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store'); // respuesta dinámica: que ningún proxy la cachee
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
