@@ -71,6 +71,13 @@ cientos de miles de filas y un INSERT por intento → la tabla crecía sin fin, 
 procesos quedaban horas en el loop de `curl` (el timer de PHP no cuenta la espera
 de red) y saturaban los Entry Processes de la cuenta → **508 en toda la API**.
 
+**Filtro de pendientes**: `Send <= 8 AND Response <> 200 AND (Stop = 0 OR Stop IS
+NULL)`. El productor crea las filas con `Stop = NULL`; la versión vieja filtraba
+solo `Stop = 0`, así que **nunca las tomaba** (había ~125k notificaciones sin
+enviar acumuladas desde 2023). Ese backlog viejo se congeló aparte
+(`UPDATE Webhook_notifications SET Stop = 1 WHERE Stop IS NULL AND TimeStamp < ...`)
+para no disparar años de webhooks de golpe.
+
 **`cron_worker.php`** — worker de la cola de webhooks de MercadoLibre
 (`MeliWebhookQueue` / `Integraciones/meli_queue/`). Procesa un lote por corrida.
 

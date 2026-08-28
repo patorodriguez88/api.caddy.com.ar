@@ -52,7 +52,7 @@ $t0 = microtime(true);
 $pendientes = $db->obtenerDatos(
     "SELECT id, idCliente, idCaddy, idProveedor, Estado, Fecha, Hora, State, Send
        FROM Webhook_notifications
-      WHERE Send <= " . MAX_SEND . " AND Response <> 200 AND Stop = 0
+      WHERE Send <= " . MAX_SEND . " AND Response <> 200 AND (Stop = 0 OR Stop IS NULL)
       ORDER BY id DESC
       LIMIT " . BATCH
 );
@@ -149,7 +149,7 @@ foreach ($pendientes as $row) {
 $restRow = $db->obtenerDatos(
     "SELECT COUNT(*) AS n
        FROM Webhook_notifications
-      WHERE Send <= " . MAX_SEND . " AND Response <> 200 AND Stop = 0"
+      WHERE Send <= " . MAX_SEND . " AND Response <> 200 AND (Stop = 0 OR Stop IS NULL)"
 );
 $restantes = isset($restRow[0]['n']) ? (int)$restRow[0]['n'] : null;
 
