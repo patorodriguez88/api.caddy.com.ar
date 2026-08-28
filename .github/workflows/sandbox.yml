@@ -1,16 +1,27 @@
-on: push
-name: 🚀 Deploy API (sandbox)
+name: Deploy API · sandbox
+on:
+  push:
+    branches: [develop]
+
 jobs:
-  web-deploy:
-    name: 🎉 Deploy
+  deploy:
+    name: FTP sync a /sandbox/
     runs-on: ubuntu-latest
     steps:
-    - name: 🚚 Get latest code
-      uses: actions/checkout@v4
-    
-    - name: 📂 Sync files
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-      with:
-        server: dintersa.com.ar
-        username: api_sandbox@api.caddy.com.ar
-        password: ${{ secrets.FTP_SECRET }}
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: FTP Deploy
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: dintersa.com.ar
+          # api_sandbox@ comparte contraseña con api@ -> mismo secret
+          username: api_sandbox@api.caddy.com.ar
+          password: ${{ secrets.FTP_SECRET }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/.github/**
+            **/*.md
+            **/.DS_Store
