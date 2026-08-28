@@ -14,7 +14,11 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if (!in_array($method, ['GET', 'POST'], true)) {
     http_response_code(405);
-    echo json_encode($_respuestas->error_405(), JSON_UNESCAPED_UNICODE);
+    $r = $_respuestas->error_405();
+    $r['result']['metodos_permitidos'] = ['GET', 'POST'];
+    $r['result']['hint'] = 'GET /rates_v3 = modo simple (N bultos idénticos, ?cantidad=N o ?bultos=N). '
+        . 'POST /rates_v3 = modo multibulto, body JSON con un arreglo "bultos" de medidas independientes.';
+    echo json_encode($r, JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -28,7 +32,9 @@ if ($method === 'GET') {
     // MODO SIMPLE: 1 tipo de bulto, N cantidad (idénticos)
     $cp = $_GET['cp'] ?? ($_GET['CodigoPostal'] ?? null);
 
-    $cantidad = isset($_GET['cantidad']) ? (int)$_GET['cantidad'] : 1;
+    // 'cantidad' = cantidad de bultos idénticos. Alias: 'bultos' (escalar en modo GET).
+    $cantidad = isset($_GET['cantidad']) ? (int)$_GET['cantidad']
+              : (isset($_GET['bultos']) ? (int)$_GET['bultos'] : 1);
 
     $baseBulto = [
         'length'         => isset($_GET['length'])         ? (float)$_GET['length']         : null,

@@ -178,6 +178,19 @@ class Rates extends conexion
             ];
         }
 
+        // Volumen fuera del rango cotizable en un solo bulto → mensaje claro.
+        $maxVol = $this->maxVolumenBulto();
+        if ($maxVol > 0 && $dim > $maxVol) {
+            return [
+                400,
+                $_resp->error_400(
+                    'El volumen del bulto (' . round($dim) . ' cm³ = largo×ancho×alto) supera el máximo '
+                    . 'cotizable en un solo bulto (' . round($maxVol) . ' cm³). Dividí el envío en varios '
+                    . 'bultos (POST /rates_v3 con un arreglo "bultos").'
+                )
+            ];
+        }
+
         // Tarifa general
         $precio = $this->rate($cpEval, $this->length, $this->width, $this->height, $this->weight);
 
@@ -391,6 +404,16 @@ class Rates extends conexion
         return $resp ? $resp : 4;
     }
 
+    /**
+     * Volumen máximo (cm³) que la grilla contempla en un solo bulto.
+     * Si la consulta falla devuelve 0 y el llamador omite el chequeo.
+     */
+    public function maxVolumenBulto()
+    {
+        $resp = parent::obtenerDatos("SELECT MAX(m3) AS m FROM Productos WHERE Grupo='Web'");
+        return ($resp && isset($resp[0]['m'])) ? (float)$resp[0]['m'] : 0.0;
+    }
+
     public function rate($codigopostal, $length, $width, $height, $weight)
     {
         if ($codigopostal >= '5000' && $codigopostal <= '5023') {
@@ -545,6 +568,17 @@ class Rates extends conexion
 
             if ($volumen <= 0 || $peso <= 0) {
                 return [400, $_resp->error_400('Datos incompletos en bulto ' . ($idx + 1))];
+            }
+
+            // Volumen fuera del rango cotizable para ese bulto → mensaje claro.
+            if (!isset($maxVolBulto)) {
+                $maxVolBulto = $this->maxVolumenBulto();
+            }
+            if ($maxVolBulto > 0 && $volumen > $maxVolBulto) {
+                return [400, $_resp->error_400(
+                    'El bulto ' . ($idx + 1) . ' tiene un volumen (' . round($volumen) . ' cm³) que supera '
+                    . 'el máximo cotizable por bulto (' . round($maxVolBulto) . ' cm³). Subdividilo en más bultos.'
+                )];
             }
 
             // tarifa por bulto

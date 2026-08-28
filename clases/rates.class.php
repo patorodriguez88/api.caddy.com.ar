@@ -154,6 +154,20 @@ class Rates extends conexion
             ];
         }
 
+        // Volumen fuera del rango cotizable en un solo bulto → mensaje claro
+        // (antes esto caía en el error genérico "Error en la obtención de precio").
+        $maxVol = $this->maxVolumenBulto();
+        if ($maxVol > 0 && $dim > $maxVol) {
+            return [
+                400,
+                $_resp->error_400(
+                    'El volumen del bulto (' . round($dim) . ' cm³ = largo×ancho×alto) supera el máximo '
+                    . 'cotizable en un solo bulto (' . round($maxVol) . ' cm³). Dividí el envío en varios '
+                    . 'bultos o usá POST /rates_v3.'
+                )
+            ];
+        }
+
         // Tarifa general
         $precio = $this->rate($cpEval, $this->length, $this->width, $this->height, $this->weight);
 
@@ -390,6 +404,17 @@ class Rates extends conexion
         $query = "SELECT id,Titulo,PrecioVenta,Kilometros,Seguro,Codigo FROM Productos WHERE Codigo='183'";
         $resp  = parent::obtenerDatos($query);
         return $resp ? $resp : 4;
+    }
+
+    /**
+     * Volumen máximo (cm³) que la grilla de tarifas contempla en un solo bulto.
+     * Es el mayor valor de m3 configurado para el grupo Web. Si la consulta falla
+     * devuelve 0 y el llamador omite el chequeo (comportamiento previo).
+     */
+    public function maxVolumenBulto()
+    {
+        $resp = parent::obtenerDatos("SELECT MAX(m3) AS m FROM Productos WHERE Grupo='Web'");
+        return ($resp && isset($resp[0]['m'])) ? (float)$resp[0]['m'] : 0.0;
     }
 
     public function rate($codigopostal, $length, $width, $height, $weight)

@@ -99,6 +99,16 @@ class RatesV2 extends conexion
             return array(400, $_resp->error_400('Faltan datos del paquete'));
         }
 
+        // Volumen fuera del rango cotizable en un solo bulto -> mensaje claro.
+        $maxVol = $this->maxVolumenBulto();
+        if ($maxVol > 0 && $dim > $maxVol) {
+            return array(400, $_resp->error_400(
+                'El volumen del bulto (' . round($dim) . ' cm3 = largo x ancho x alto) supera el maximo '
+                . 'cotizable en un solo bulto (' . round($maxVol) . ' cm3). Divida el envio en varios '
+                . 'bultos o use POST /rates_v3.'
+            ));
+        }
+
         // $precio = $this->rate($cpEval, $this->length, $this->width, $this->height, $this->weight);
         // if ($this->isErrorPrecio($precio)) {
         //     if ($precio === 4) return array(400, $_resp->error_400('Error en localidad'));
@@ -287,6 +297,14 @@ class RatesV2 extends conexion
         $query = "SELECT id,Titulo,PrecioVenta,Kilometros,Seguro,Codigo FROM Productos WHERE Codigo='183'";
         $resp  = parent::obtenerDatos($query);
         return $resp ? $resp : 4;
+    }
+
+    // Volumen máximo (cm³) que la grilla contempla en un solo bulto.
+    // Si la consulta falla devuelve 0 y el llamador omite el chequeo.
+    public function maxVolumenBulto()
+    {
+        $resp = parent::obtenerDatos("SELECT MAX(m3) AS m FROM Productos WHERE Grupo='Web'");
+        return ($resp && isset($resp[0]['m'])) ? (float)$resp[0]['m'] : 0.0;
     }
 
     public function rate($codigopostal, $length, $width, $height, $weight)

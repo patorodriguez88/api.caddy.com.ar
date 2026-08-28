@@ -1,42 +1,84 @@
-# Cron externo (cron-job.org)
+# Procesos periódicos (cron)
 
-El cron de Apache no nos funcionaba de forma confiable, así que los procesos periódicos
-se disparan desde afuera: un job en **[cron-job.org](https://console.cron-job.org/dashboard)**
-le pega por HTTP a una URL protegida por secret, en vez de depender de un cron del servidor.
+Desde el **2026-08-28** los procesos periódicos corren como **cron de cPanel
+ejecutando PHP por CLI**, no por HTTP. Antes se disparaban desde
+[cron-job.org](https://console.cron-job.org/dashboard) pegándole a una URL.
 
-Cada endpoint acepta el secret por GET o POST (`?secret=...` o `secret=...` en el body) y
-devuelve JSON. Van con headers no-cache porque nginx/nuestro proxy llegó a cachear alguna
-de estas URLs, lo que hacía que el job pareciera correr sin hacer nada.
+## Jobs activos (crontab de cPanel, usuario `dinter6`)
 
-## Jobs activos
+```cron
+MAILTO="prodriguez@dintersa.com.ar"
+SHELL="/bin/bash"
 
-| Qué dispara | URL completa |
-|---|---|
-| Worker de la cola de MercadoLibre | `https://api.caddy.com.ar/api/cron_worker.php` |
-| Envío de webhooks pendientes (`Webhook_notifications`) | `https://api.caddy.com.ar/api/cron_webhooks.php` |
+# Worker de la cola de MercadoLibre — cada 2 min
+*/2 * * * * /usr/bin/flock -n /home/dinter6/tmp/cron_worker.lock   /opt/cpanel/ea-php82/root/usr/bin/php /home/dinter6/api.caddy.com.ar/api/cron_worker.php   >> /home/dinter6/logs/cron_worker.log 2>&1
 
-**Ojo con el `/api/` en la URL**: el Document Root del dominio es `/home/dinter6/api.caddy.com.ar`,
-pero la cuenta FTP que usa el deploy (`api@api.caddy.com.ar`) tiene su home un nivel más
-adentro, en `/home/dinter6/api.caddy.com.ar/api` — así que todo lo que se sube por FTP
-queda public en `https://api.caddy.com.ar/api/<archivo>.php`, **no** en
-`https://api.caddy.com.ar/<archivo>.php`. Cualquier cron o integración nueva que le pegue a
-este dominio tiene que usar el prefijo `/api/`, si no da 404 aunque el archivo esté bien
-deployado (así se rompió `cron_webhooks.php`: cron-job.org se configuró con la URL sin
-`/api/`, dio 404 en cada corrida y terminó autodeshabilitado tras 26 fallos).
+# Envío de webhooks pendientes (Webhook_notifications) — cada 2 min
+*/2 * * * * /usr/bin/flock -n /home/dinter6/tmp/cron_webhooks.lock /opt/cpanel/ea-php82/root/usr/bin/php /home/dinter6/api.caddy.com.ar/api/cron_webhooks.php >> /home/dinter6/logs/cron_webhooks.log 2>&1
 
-El envío de webhooks vive acá (no en sistema.caddy.com.ar) porque es un evento de API
-saliente hacia un partner externo (Wepoint, etc.) — api.caddy.com.ar es el subdominio
-para todos los eventos de API. Quien *decide* cuándo avisar (según `Estados.Webhook`) y
-encola la fila en `Webhook_notifications` es `cambiarRecorrido()` en sistema.caddy.com.ar
-(`Funciones/Funciones.php`) — eso sí queda ahí, porque es lógica operativa interna, no un
-evento de API en sí mismo. Las dos apps comparten la misma base (`dinter6_triangular` en
-`ftp.dintersa.com.ar`), así que no hace falta duplicar tablas para que esto funcione.
+# Truncar los logs, domingos 4am
+0 4 * * 0 : > /home/dinter6/logs/cron_worker.log ; : > /home/dinter6/logs/cron_webhooks.log
+```
 
-El secret de cada uno está hardcodeado como constante en el propio archivo PHP (mismo
-patrón en los dos) — no está en ningún otro lado, no hace falta buscarlo en un vault.
+- **`flock -n`**: si la corrida anterior sigue viva, la nueva se **saltea** en
+  vez de apilarse. Es la protección contra el pile-up de procesos.
+- **Binario pineado** (`ea-php82`): el wrapper `/usr/local/bin/php` resuelve la
+  versión por directorio y desde cron puede caer a la default de la cuenta; los
+  scripts necesitan PHP 8.
+- **`MAILTO`**: cualquier error del cron llega por mail (visibilidad que con
+  cron-job.org no había).
+- Logs en `/home/dinter6/logs/`.
 
-## Por qué existe este archivo
+## Modo CLI vs HTTP
 
-Para no depender de la memoria de nadie sobre cuál era el servicio de cron externo que
-usábamos, ni de tener que releer código para acordarse de que este patrón existe. Si se
-agrega un job nuevo (otro disparador HTTP con secret), sumarlo a la tabla de arriba.
+Ambos scripts (`cron_worker.php`, `cron_webhooks.php`) detectan el SAPI:
+
+```php
+$esCli = (php_sapi_name() === 'cli');
+if (!$esCli) { /* exige ?secret=... y manda headers no-cache */ }
+```
+
+- **CLI** (cron de cPanel): sin secret. No consume Entry Processes, no pasa por
+  el WAF, no lo cachea ningún proxy.
+- **HTTP** (`https://api.caddy.com.ar/api/cron_*.php?secret=...`): sigue
+  funcionando por si hay que dispararlo a mano. El secret está hardcodeado como
+  constante en cada archivo.
+
+**Ojo con el `/api/` en la URL HTTP**: el Document Root del dominio es
+`/home/dinter6/api.caddy.com.ar`, pero la cuenta FTP `api@api.caddy.com.ar` tiene
+su home en `/home/dinter6/api.caddy.com.ar/api`, así que lo deployado queda
+público en `https://api.caddy.com.ar/api/<archivo>.php`.
+
+## cron-job.org — fallback deshabilitado
+
+Los dos jobs en cron-job.org quedaron **pausados** (no borrados) como respaldo.
+Apuntan a las URLs HTTP con `?secret=...`. Si alguna vez se reactivan, `flock`
+del lado del cron de cPanel no aplica al trigger HTTP, así que **no reactivar los
+dos a la vez** (HTTP + CLI).
+
+## Qué hace cada uno
+
+**`cron_webhooks.php`** — consume `Webhook_notifications`, que
+`sistema.caddy.com.ar` encola en `cambiarRecorrido()`
+(`Funciones/Funciones.php`) cuando un cambio de estado amerita avisar a un
+cliente (según `Estados.Webhook`). Envía cada notificación pendiente al endpoint
+del cliente (`Webhook.Endpoint`).
+
+Acotado a propósito (fix 2026-08-28): `LIMIT 50` por corrida, presupuesto de
+~20s, y **UPDATE de la fila** (`Send+1`, `Response`, `Stop`) en vez de INSERT de
+una fila nueva por intento. La versión vieja hacía `SELECT` sin LIMIT sobre
+cientos de miles de filas y un INSERT por intento → la tabla crecía sin fin, los
+procesos quedaban horas en el loop de `curl` (el timer de PHP no cuenta la espera
+de red) y saturaban los Entry Processes de la cuenta → **508 en toda la API**.
+
+**`cron_worker.php`** — worker de la cola de webhooks de MercadoLibre
+(`MeliWebhookQueue` / `Integraciones/meli_queue/`). Procesa un lote por corrida.
+
+## Incidente 2026-08-28 (resumen)
+
+`cron_webhooks.php` viejo + backlog de ~340k filas + endpoint de un partner
+caído → procesos PHP colgados en `curl` que no terminaban → Entry Processes al
+límite → **508 en toda la API durante la mañana**. Se resolvió: pausar
+cron-job.org, matar los `lsphp`, congelar el backlog
+(`UPDATE Webhook_notifications SET Stop=1 WHERE Send<=8 AND Response<>200 AND Stop=0`),
+reescribir `cron_webhooks.php` acotado, y mover los crons a cPanel + CLI + flock.

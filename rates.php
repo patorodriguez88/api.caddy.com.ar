@@ -12,7 +12,11 @@ header('Content-Type: application/json; charset=utf-8');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
-    echo json_encode($_respuestas->error_405(), JSON_UNESCAPED_UNICODE);
+    $r = $_respuestas->error_405();
+    $r['result']['metodos_permitidos'] = ['GET'];
+    $r['result']['hint'] = 'GET /rates cotiza N bultos idénticos con ?cantidad=N (alias: ?bultos=N). '
+        . 'Para varios bultos con medidas distintas, usá POST /rates_v3 con un arreglo "bultos".';
+    echo json_encode($r, JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -34,7 +38,10 @@ $params = [
     'weight'         => $_GET['weight']         ?? null,
     'localidad'      => $_GET['localidad']      ?? '',
     'servicio'       => isset($_GET['servicio']) ? (int)$_GET['servicio'] : 1,
-    'cantidad'       => isset($_GET['cantidad']) ? (int)$_GET['cantidad'] : 1,
+    // 'cantidad' = cantidad de bultos físicos idénticos (NO unidades de producto).
+    // Alias aceptado: 'bultos'. Si vienen ambos, gana 'cantidad'.
+    'cantidad'       => isset($_GET['cantidad']) ? (int)$_GET['cantidad']
+                        : (isset($_GET['bultos']) ? (int)$_GET['bultos'] : 1),
     'valorDeclarado' => isset($_GET['valorDeclarado']) ? (float)$_GET['valorDeclarado'] : 0.0,
     'flex'           => isset($_GET['flex']) ? (int)$_GET['flex'] : 0,
 ];
