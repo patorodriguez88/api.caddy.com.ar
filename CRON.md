@@ -16,8 +16,11 @@ SHELL="/bin/bash"
 # Envío de webhooks pendientes (Webhook_notifications) — cada 2 min
 */2 * * * * /usr/bin/flock -n /home/dinter6/tmp/cron_webhooks.lock /opt/cpanel/ea-php82/root/usr/bin/php /home/dinter6/api.caddy.com.ar/api/cron_webhooks.php >> /home/dinter6/logs/cron_webhooks.log 2>&1
 
+# Chequeo de salud de los endpoints (llena api_status_checks) — cada 3 min
+*/3 * * * * /usr/bin/flock -n /home/dinter6/tmp/cron_status.lock   /opt/cpanel/ea-php82/root/usr/bin/php /home/dinter6/api.caddy.com.ar/api/cron_status.php   >> /home/dinter6/logs/cron_status.log 2>&1
+
 # Truncar los logs, domingos 4am
-0 4 * * 0 : > /home/dinter6/logs/cron_worker.log ; : > /home/dinter6/logs/cron_webhooks.log
+0 4 * * 0 : > /home/dinter6/logs/cron_worker.log ; : > /home/dinter6/logs/cron_webhooks.log ; : > /home/dinter6/logs/cron_status.log
 ```
 
 - **`flock -n`**: si la corrida anterior sigue viva, la nueva se **saltea** en
@@ -80,6 +83,42 @@ para no disparar años de webhooks de golpe.
 
 **`cron_worker.php`** — worker de la cola de webhooks de MercadoLibre
 (`MeliWebhookQueue` / `Integraciones/meli_queue/`). Procesa un lote por corrida.
+
+**`cron_status.php`** — chequeo de salud. Pega a cada endpoint (prod + sandbox)
+con un request vacío (sin token / sin body), mide latencia y estado, y guarda una
+fila por chequeo en `api_status_checks`. El panel `status.php`
+(`https://api.caddy.com.ar/api/status.php`, o `?format=json` para monitoreo
+externo) lee esa tabla y muestra estado actual, latencia y uptime 24h / 7d.
+
+Un endpoint se cuenta OK si respondió, el body no tiene un error de PHP y el HTTP
+code + marcador son los esperados (un `401`/`400` limpio ya prueba que PHP corre,
+el ruteo anda y la BD responde al validar el token). El histórico se poda a 45
+días en cada corrida.
+
+Usa un User-Agent propio (`CaddyStatus/1.0`), no `curl`: el mod_security del
+hosting devuelve **406** a los requests con UA `curl` o UA vacío. Si algún
+monitor externo pega con `curl` pelado, hay que agregarle `-A "algo"`.
+
+### Tabla `api_status_checks` (crear una vez)
+
+```sql
+CREATE TABLE IF NOT EXISTS api_status_checks (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  ts DATETIME NOT NULL,
+  chk VARCHAR(40) NOT NULL,          -- 'prod:rates', 'sandbox:auth', 'shared:docs'
+  entorno VARCHAR(10) NOT NULL,      -- prod | sandbox | shared
+  metodo VARCHAR(8) NOT NULL,
+  url VARCHAR(255) NOT NULL,
+  http_code SMALLINT NOT NULL,       -- 0 = no respondió / timeout
+  ok TINYINT(1) NOT NULL,
+  latency_ms INT NOT NULL,
+  ttfb_ms INT NOT NULL,
+  error VARCHAR(200) DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY idx_chk_ts (chk, ts),
+  KEY idx_ts (ts)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
 
 ## Incidente 2026-08-28 (resumen)
 
