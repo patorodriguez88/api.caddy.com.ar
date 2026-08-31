@@ -480,9 +480,17 @@ class Rates extends conexion
     {
         $_resp = new respuestas();
 
-        // 1) Token (como ya hacés)
+        // 1) Token (Bearer / ?token= / body). Guard de null ANTES de validar:
+        // Token::validar() tipa string, y sin este check un request sin token
+        // tiraba TypeError (fatal 200) en vez de un 401 limpio.
         $token = Token::obtenerToken();
-        $info  = Token::validar($token, $this);
+        if (!$token && !empty($p['token'])) {
+            $token = trim((string)$p['token']);
+        }
+        if (!$token) {
+            return [401, $_resp->error_401('Debe enviar token (Bearer o query "token")')];
+        }
+        $info = Token::validar($token, $this);
         if (!$info) {
             return [401, $_resp->error_401('Token inválido o caducado')];
         }

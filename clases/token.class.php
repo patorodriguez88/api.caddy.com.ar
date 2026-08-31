@@ -3,7 +3,12 @@ require_once __DIR__ . '/../conexion/conexion.php';
 
 class Token
 {
-    private const TTL_SECONDS = 86400;
+    // Sin expiración por tiempo: el token vale mientras Estado = 'Activo'.
+    // El TTL de 24h (introducido el 2026-07-24) rompía a todo cliente que guarda
+    // un token y lo reusa más de un día — que son casi todos (61 de 66 tokens
+    // activos quedaban fuera de ventana). rates_v2 nunca tuvo TTL, por eso esos
+    // clientes seguían andando. Para revocar un token: usuarios_token.Estado.
+    private const TTL_SECONDS = 0;
 
     /**
      * Obtiene el token desde:
@@ -70,7 +75,12 @@ class Token
      */
     public static function validar(string $token, conexion $db): ?array
     {
-        $ttl = self::TTL_SECONDS;
+        $tokenEsc = $db->escapar($token);
+
+        $ttlClause = self::TTL_SECONDS > 0
+            ? "AND ut.Fecha > (NOW() - INTERVAL " . (int) self::TTL_SECONDS . " SECOND)"
+            : "";
+
         $query = "
             SELECT
                 ut.TokenId,
@@ -79,9 +89,9 @@ class Token
                 u.NdeCliente
             FROM usuarios_token AS ut
             JOIN usuarios AS u ON ut.UsuarioId = u.id
-            WHERE ut.Token = '" . $token . "'
+            WHERE ut.Token = '" . $tokenEsc . "'
               AND ut.Estado = 'Activo'
-              AND ut.Fecha > (NOW() - INTERVAL $ttl SECOND)
+              $ttlClause
             LIMIT 1
         ";
 
