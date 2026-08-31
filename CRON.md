@@ -92,8 +92,9 @@ externo) lee esa tabla y muestra estado actual, latencia y uptime 24h / 7d.
 
 Un endpoint se cuenta OK si respondió, el body no tiene un error de PHP y el HTTP
 code + marcador son los esperados (un `401`/`400` limpio ya prueba que PHP corre,
-el ruteo anda y la BD responde al validar el token). El histórico se poda a 45
-días en cada corrida.
+el ruteo anda y la BD responde al validar el token). En cada corrida borra de
+`api_status_checks` lo más viejo que `RETENCION_DIAS` (14) — la tabla se
+estabiliza en ~110k filas / ~25 MB, no crece sin fin.
 
 Usa un User-Agent propio (`CaddyStatus/1.0`), no `curl`: el mod_security del
 hosting devuelve **406** a los requests con UA `curl` o UA vacío. Si algún

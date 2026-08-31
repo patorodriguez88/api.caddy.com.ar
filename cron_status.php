@@ -36,7 +36,12 @@
  */
 
 const CRON_STATUS_SECRET = 'S7pQ2mZx9Lr4Ktb8Ncy3Vha6Fwd1Uje';
-const RETENCION_DIAS      = 45;
+
+// Cada corrida borra las filas mas viejas que esto. La tabla se estabiliza en
+// ~RETENCION_DIAS * 480 corridas/dia * 16 checks filas (14d => ~110k, ~25 MB).
+// El panel solo usa datos recientes (sparkline ~3h, uptime 24h/7d), asi que no
+// hace falta guardar mas. Subir este numero si alguna vez se quiere mas historia.
+const RETENCION_DIAS      = 14;
 
 // UA que NO sea "curl": mod_security del hosting devuelve 406 a curl/UA vacío.
 const MONITOR_UA = 'CaddyStatus/1.0 (+https://api.caddy.com.ar/api/status.php)';
