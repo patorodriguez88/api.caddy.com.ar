@@ -175,14 +175,27 @@ foreach ($CHECKS as [$clave, $entorno, $metodo, $url, $codigos, $marcador]) {
 // Limpieza de histórico
 $db->nonQuery("DELETE FROM api_status_checks WHERE ts < (NOW() - INTERVAL " . (int) RETENCION_DIAS . " DAY)");
 
-$resumen = [
+$ko    = count($CHECKS) - $okTotal;
+$fails = array_values(array_filter($resultados, fn($r) => !$r['ok']));
+
+if ($esCli) {
+    // Una sola línea por corrida para que cron_status.log no crezca de golpe.
+    // Si todo OK: ~90 chars. Si hay fallas: agrega qué falló.
+    $linea = sprintf('%s ok=%d/%d', $now, $okTotal, count($CHECKS));
+    foreach ($fails as $f) {
+        $linea .= sprintf(' | %s HTTP=%d %s', $f['chk'], $f['http'], $f['error']);
+    }
+    echo $linea . PHP_EOL;
+    exit;
+}
+
+// HTTP (disparo manual): devolvemos el detalle completo.
+echo json_encode([
     'ok'        => 1,
-    'via'       => $esCli ? 'cli' : 'http',
+    'via'       => 'http',
     'ts'        => $now,
     'checks'    => count($CHECKS),
     'ok_checks' => $okTotal,
-    'ko_checks' => count($CHECKS) - $okTotal,
+    'ko_checks' => $ko,
     'detalle'   => $resultados,
-];
-
-echo json_encode($resumen, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL;
