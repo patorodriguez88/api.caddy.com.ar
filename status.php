@@ -30,11 +30,31 @@ if (STATUS_VIEW_KEY !== '' && $formato === 'html'
 
 $db = new conexion();
 
+// obtenerDatos() no atrapa las excepciones de mysqli (modo estricto por
+// defecto en PHP 8.1+), así que si la tabla todavía no existe o la BD tose,
+// esto envuelve la consulta y devuelve [] + marca el motivo.
+$dbError = null;
+function q(conexion $db, string $sql): array
+{
+    global $dbError;
+    try {
+        return $db->obtenerDatos($sql);
+    } catch (\Throwable $e) {
+        if (stripos($e->getMessage(), "api_status_checks") !== false
+            && stripos($e->getMessage(), "exist") !== false) {
+            $dbError = 'tabla_faltante';
+        } elseif ($dbError === null) {
+            $dbError = 'db_error: ' . $e->getMessage();
+        }
+        return [];
+    }
+}
+
 /* ─────────────────────────────── Datos ─────────────────────────────────── */
 
 // Última fila por chequeo (estado actual, robusto aunque el cron esté frenado).
 $ultimas = [];
-foreach ($db->obtenerDatos(
+foreach (q($db,
     "SELECT c.chk,c.entorno,c.metodo,c.url,c.http_code,c.ok,c.latency_ms,c.ttfb_ms,c.error,c.ts
      FROM api_status_checks c
      JOIN (SELECT chk, MAX(id) mid FROM api_status_checks GROUP BY chk) m ON m.mid = c.id"
@@ -44,7 +64,7 @@ foreach ($db->obtenerDatos(
 
 // Agregados 24h / 7d.
 $agg = [];
-foreach ($db->obtenerDatos(
+foreach (q($db,
     "SELECT chk,
             SUM(ts >= NOW() - INTERVAL 24 HOUR)                         AS n24,
             SUM(ok = 1 AND ts >= NOW() - INTERVAL 24 HOUR)              AS ok24,
@@ -61,7 +81,7 @@ foreach ($db->obtenerDatos(
 
 // Puntos recientes para el sparkline (últimas ~3h).
 $puntos = [];
-foreach ($db->obtenerDatos(
+foreach (q($db,
     "SELECT chk, ok, latency_ms
      FROM api_status_checks
      WHERE ts >= NOW() - INTERVAL 3 HOUR
@@ -71,7 +91,7 @@ foreach ($db->obtenerDatos(
 }
 
 // Incidentes (rachas de ok=0) en 7 días.
-$fallas = $db->obtenerDatos(
+$fallas = q($db,
     "SELECT chk, ts, http_code, error
      FROM api_status_checks
      WHERE ok = 0 AND ts >= NOW() - INTERVAL 7 DAY
@@ -172,13 +192,24 @@ if ($formato === 'json') {
         ];
     }
 
-    $estado = !$cronVivo ? 'sin_datos' : ($totalKo === 0 ? 'operativo' : ($totalKo >= count($ultimas) ? 'caido' : 'degradado'));
-    http_response_code($estado === 'operativo' || $estado === 'degradado' ? 200 : 503);
+    if ($dbError !== null) {
+        $estado = 'sin_datos';
+    } elseif (!$cronVivo) {
+        $estado = 'sin_datos';
+    } elseif ($totalKo === 0) {
+        $estado = 'operativo';
+    } elseif ($totalKo >= count($ultimas)) {
+        $estado = 'caido';
+    } else {
+        $estado = 'degradado';
+    }
+    http_response_code(in_array($estado, ['operativo', 'degradado'], true) ? 200 : 503);
 
     echo json_encode([
         'estado'        => $estado,
         'ultimo_chequeo' => $ultimoTs,
         'cron_vivo'     => $cronVivo,
+        'db_error'      => $dbError,
         'checks_ko'     => $totalKo,
         'checks_total'  => count($ultimas),
         'checks'        => $checks,
@@ -261,13 +292,16 @@ usort($claves, function ($a, $b) use ($orden, $ultimas) {
     · se refresca solo cada 60&nbsp;s · <a href="?format=json">JSON</a>
   </div>
 
-  <div class="banner <?= $estadoTxt[1] ?>"><span class="dot"></span><?= htmlspecialchars($estadoTxt[0]) ?></div>
+  <div class="banner <?= $dbError === 'tabla_faltante' ? 'warn' : $estadoTxt[1] ?>"><span class="dot"></span><?=
+    $dbError === 'tabla_faltante' ? 'falta crear la tabla api_status_checks' : htmlspecialchars($estadoTxt[0]) ?></div>
 
-  <?php if (!$cronVivo && $ultimoTs): ?>
+  <?php if ($dbError === 'tabla_faltante'): ?>
+    <p class="err">La tabla <code>api_status_checks</code> todavía no existe. Corré el <code>CREATE TABLE</code> de <code>CRON.md</code> y agregá la línea de cron (<code>*/3</code>). En cuanto <code>cron_status.php</code> corra una vez, este panel se llena solo.</p>
+  <?php elseif ($dbError !== null): ?>
+    <p class="err">Error de base de datos leyendo el histórico: <?= htmlspecialchars($dbError) ?></p>
+  <?php elseif (!$cronVivo && $ultimoTs): ?>
     <p class="err">⚠ El cron <code>cron_status.php</code> no registra chequeos hace más de 15&nbsp;min. Los datos de abajo pueden estar viejos.</p>
-  <?php endif; ?>
-
-  <?php if (!$ultimas): ?>
+  <?php elseif (!$ultimas): ?>
     <p class="muted">Cuando <code>cron_status.php</code> corra por primera vez van a aparecer acá los endpoints. Ver instrucciones en <code>CRON.md</code>.</p>
   <?php endif; ?>
 
