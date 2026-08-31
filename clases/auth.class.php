@@ -33,13 +33,13 @@ class auth extends conexion
                         //VERIFICAR TOKEN
                         $verificar = $this->verificartoken($datos[0]['id']);
                         if ($verificar) {
-                            $antiguedad = time() - strtotime($verificar[0]['Fecha']);
-                            $expiresIn = max(0, self::TOKEN_TTL_SECONDS - $antiguedad);
                             $result = $_respustas->response;
                             $result["result"] = array(
                                 "Estado" => $verificar[0]['Estado'],
                                 "token" => $verificar[0]['Token'],
-                                "expires_in" => $expiresIn,
+                                // Informativo / compatibilidad: el token NO caduca
+                                // por tiempo, vale mientras Estado='Activo'.
+                                "expires_in" => self::TOKEN_TTL_SECONDS,
                             );
                             return $result;
                         } else {
@@ -119,8 +119,14 @@ class auth extends conexion
 
     private function verificartoken($usuarioid)
     {
-        $ttl = self::TOKEN_TTL_SECONDS;
-        $query = "SELECT Estado,Token,Fecha FROM usuarios_token WHERE UsuarioId='$usuarioid' AND Fecha > (NOW() - INTERVAL $ttl SECOND) AND Estado='Activo'";
+        // Sin filtro por antigüedad: reusamos el token activo que ya tenga el
+        // usuario en vez de emitir uno nuevo cada 24h. El token no caduca por
+        // tiempo (ver Token::validar()); esto evita que usuarios_token acumule
+        // una fila nueva por cliente por día.
+        $usuarioid = parent::escapar($usuarioid);
+        $query = "SELECT Estado,Token,Fecha FROM usuarios_token
+                  WHERE UsuarioId='$usuarioid' AND Estado='Activo'
+                  ORDER BY TokenId DESC LIMIT 1";
         $verifica = parent::obtenerDatos($query);
         if ($verifica) {
             return $verifica;
