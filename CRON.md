@@ -16,8 +16,12 @@ SHELL="/bin/bash"
 # Envío de webhooks pendientes (Webhook_notifications) — cada 2 min
 */2 * * * * /usr/bin/flock -n /home/dinter6/tmp/cron_webhooks.lock /opt/cpanel/ea-php82/root/usr/bin/php /home/dinter6/api.caddy.com.ar/api/cron_webhooks.php >> /home/dinter6/logs/cron_webhooks.log 2>&1
 
-# Chequeo de salud de los endpoints (llena api_status_checks) — cada 3 min
-*/3 * * * * /usr/bin/flock -n /home/dinter6/tmp/cron_status.lock   /opt/cpanel/ea-php82/root/usr/bin/php /home/dinter6/api.caddy.com.ar/api/cron_status.php   >> /home/dinter6/logs/cron_status.log 2>&1
+# Chequeo de salud de los endpoints (llena api_status_checks) — cada 5 min
+# El `CRON_STATUS_SECRET=...` adelante exporta el secret solo para ese proceso
+# (getenv en cron_status.php). Rotar el valor y borrarlo del código (queda un
+# fallback hardcodeado por si el env no está). El CLI no usa el secret; sirve
+# para el disparo HTTP y para cron-job.org.
+*/5 * * * * CRON_STATUS_SECRET=<secret-rotado> /usr/bin/flock -n /home/dinter6/tmp/cron_status.lock /opt/cpanel/ea-php82/root/usr/bin/php /home/dinter6/api.caddy.com.ar/api/cron_status.php >> /home/dinter6/logs/cron_status.log 2>&1
 
 # Truncar los logs, domingos 4am
 0 4 * * 0 : > /home/dinter6/logs/cron_worker.log ; : > /home/dinter6/logs/cron_webhooks.log ; : > /home/dinter6/logs/cron_status.log
@@ -93,12 +97,40 @@ externo) lee esa tabla y muestra estado actual, latencia y uptime 24h / 7d.
 Un endpoint se cuenta OK si respondió, el body no tiene un error de PHP y el HTTP
 code + marcador son los esperados (un `401`/`400` limpio ya prueba que PHP corre,
 el ruteo anda y la BD responde al validar el token). En cada corrida borra de
-`api_status_checks` lo más viejo que `RETENCION_DIAS` (14) — la tabla se
-estabiliza en ~110k filas / ~25 MB, no crece sin fin.
+`api_status_checks` lo más viejo que `RETENCION_DIAS` (14).
 
 Usa un User-Agent propio (`CaddyStatus/1.0`), no `curl`: el mod_security del
 hosting devuelve **406** a los requests con UA `curl` o UA vacío. Si algún
 monitor externo pega con `curl` pelado, hay que agregarle `-A "algo"`.
+
+**429 / rate-limit del proxy (fix 2026-09-01).** Los 16 checks salían pegados
+desde la IP del propio server y el nginx de adelante empezaba a devolver **429**
+a partir del ~request 8; el panel pintaba de "caído" medio sandbox sin que los
+endpoints tuvieran nada (uptime 24h en ~22 %). Mitigación en `cron_status.php`:
+
+- `PAUSA_ENTRE_CHECKS_MS` (500) entre cada request y `shuffle()` del orden, para
+  no sesgar siempre a los mismos checks.
+- Ante un `429`: espera `REINTENTO_429_MS` (2500) y reintenta **una** vez. Si
+  igual da 429, la fila se guarda con `http_code = 429` y se trata como **"sin
+  medición"** (skipped), no como caída.
+- `status.php` **excluye `http_code = 429`** del uptime, de los incidentes y del
+  estado global; en la tabla sale un pill gris "SIN MEDICIÓN" y el sparkline lo
+  pinta atenuado. Esto arregla también el histórico ya guardado.
+- Frecuencia bajada de `*/3` a `*/5` para aflojar la carga saliente.
+- `CHECK_RESOLVE` (por defecto `''`): si se setea a `127.0.0.1`, los checks
+  resuelven el host a esa IP y saltan el proxy. Probar antes a mano
+  (`curl --resolve api.caddy.com.ar:443:127.0.0.1 ...`); contra: deja de testear
+  el borde (TLS/proxy).
+
+**Secrets por env.** `CRON_STATUS_SECRET` (disparo HTTP) y `STATUS_VIEW_KEY`
+(panel) se leen con `getenv()`. `cron_status.php` deja un fallback hardcodeado;
+`status.php` **no** — sin `STATUS_VIEW_KEY` el panel queda abierto pero recortado
+(sin strings de error crudos ni detalle de incidentes). Con `?key=…` correcta se
+ve todo; con la key configurada y sin/mal `?key=` → 403 (también para el JSON).
+
+**URLs del panel:** la canónica es **`/api/status.php`** (es adonde deploya la
+cuenta FTP). `/api-docs/status.php` resuelve al mismo panel (redirect / alias
+armado a mano); si algún día deja de andar, apuntar directo a `/api/status.php`.
 
 ### Tabla `api_status_checks` (crear una vez)
 
