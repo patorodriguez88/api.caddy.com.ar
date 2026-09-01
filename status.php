@@ -8,25 +8,41 @@
  *   /api/status.php               -> panel HTML (auto-refresh 60s)
  *   /api/status.php?format=json   -> resumen JSON (para monitoreo externo)
  *
- * Si STATUS_VIEW_KEY != '' exige ?key=... para ver el panel.
+ * Acceso:
+ *   - Con STATUS_VIEW_KEY seteada (constante o env del mismo nombre): exige
+ *     ?key=... para CUALQUIER formato; sin key -> 403.
+ *   - Sin key configurada: el panel queda abierto pero RECORTADO — sin los
+ *     strings de error crudos ni el detalle de incidentes (que pueden filtrar
+ *     rutas o códigos internos). Pasá ?key=... para ver todo.
  */
 
-const STATUS_VIEW_KEY = '';           // '' = panel abierto. Si se setea, exige ?key=
+const STATUS_VIEW_KEY_FALLBACK = '';  // '' = sin key. Mejor exportar STATUS_VIEW_KEY en el env.
 const VENTANA_SPARK   = 60;           // puntos del sparkline
 const DEG_UPTIME      = 99.5;         // % 24h por debajo del cual el check está "degradado"
 const WARN_UPTIME     = 95.0;
+
+function status_view_key(): string
+{
+    $env = getenv('STATUS_VIEW_KEY');
+    return ($env !== false && $env !== '') ? $env : STATUS_VIEW_KEY_FALLBACK;
+}
 
 require_once __DIR__ . '/conexion/conexion.php';
 
 $formato = ($_GET['format'] ?? 'html') === 'json' ? 'json' : 'html';
 
-if (STATUS_VIEW_KEY !== '' && $formato === 'html'
-    && !hash_equals(STATUS_VIEW_KEY, (string) ($_GET['key'] ?? ''))) {
+$viewKey = status_view_key();
+$keyOk   = $viewKey !== '' && hash_equals($viewKey, (string) ($_GET['key'] ?? ''));
+
+if ($viewKey !== '' && !$keyOk) {
     http_response_code(403);
     header('Content-Type: text/plain; charset=utf-8');
     echo 'No autorizado.';
     exit;
 }
+
+// Detalle completo solo si hay key y coincide. Sin key configurada => recortado.
+$detalleCompleto = $keyOk;
 
 $db = new conexion();
 
@@ -62,7 +78,8 @@ foreach (q($db,
     $ultimas[$r['chk']] = $r;
 }
 
-// Agregados 24h / 7d.
+// Agregados 24h / 7d. Las filas con http_code = 429 son "sin medición" (nos
+// throttleó el proxy, no es el endpoint) y NO entran en el uptime.
 $agg = [];
 foreach (q($db,
     "SELECT chk,
@@ -73,7 +90,7 @@ foreach (q($db,
             ROUND(AVG(CASE WHEN ts >= NOW() - INTERVAL 24 HOUR THEN latency_ms END)) AS lat_avg24,
             MAX(CASE WHEN ts >= NOW() - INTERVAL 24 HOUR THEN latency_ms END)        AS lat_max24
      FROM api_status_checks
-     WHERE ts >= NOW() - INTERVAL 7 DAY
+     WHERE ts >= NOW() - INTERVAL 7 DAY AND http_code <> 429
      GROUP BY chk"
 ) as $r) {
     $agg[$r['chk']] = $r;
@@ -82,19 +99,23 @@ foreach (q($db,
 // Puntos recientes para el sparkline (últimas ~3h).
 $puntos = [];
 foreach (q($db,
-    "SELECT chk, ok, latency_ms
+    "SELECT chk, ok, http_code, latency_ms
      FROM api_status_checks
      WHERE ts >= NOW() - INTERVAL 3 HOUR
      ORDER BY id"
 ) as $r) {
-    $puntos[$r['chk']][] = ['ok' => (int) $r['ok'], 'ms' => (int) $r['latency_ms']];
+    $puntos[$r['chk']][] = [
+        'ok'   => (int) $r['ok'],
+        'skip' => ((int) $r['http_code'] === 429) ? 1 : 0,
+        'ms'   => (int) $r['latency_ms'],
+    ];
 }
 
-// Incidentes (rachas de ok=0) en 7 días.
+// Incidentes (rachas de ok=0) en 7 días. Excluye 429 (sin medición).
 $fallas = q($db,
     "SELECT chk, ts, http_code, error
      FROM api_status_checks
-     WHERE ok = 0 AND ts >= NOW() - INTERVAL 7 DAY
+     WHERE ok = 0 AND http_code <> 429 AND ts >= NOW() - INTERVAL 7 DAY
      ORDER BY chk, id"
 );
 $incidentes = [];
@@ -120,8 +141,14 @@ foreach ($ultimas as $u) {
     if ($ultimoTs === null || $u['ts'] > $ultimoTs) $ultimoTs = $u['ts'];
 }
 $cronVivo   = $ultimoTs && (time() - strtotime($ultimoTs)) < 15 * 60;
-$totalKo    = 0;
-foreach ($ultimas as $u) { if (!$u['ok']) $totalKo++; }
+$totalKo    = 0;   // caídos de verdad (ok=0 y no es un 429 de throttling)
+$totalSkip  = 0;   // sin medición ahora mismo (último chequeo dio 429)
+$totalMedidos = 0; // checks con medición válida en el último chequeo
+foreach ($ultimas as $u) {
+    if ((int) $u['http_code'] === 429) { $totalSkip++; continue; }
+    $totalMedidos++;
+    if (!$u['ok']) $totalKo++;
+}
 
 /* ─────────────────────────────── Helpers ──────────────────────────────── */
 
@@ -155,11 +182,13 @@ function sparkline(array $pts): string
     $svgW = count($pts) * ($w + $gap);
     $out  = '<svg class="spark" width="' . $svgW . '" height="' . $h . '" viewBox="0 0 ' . $svgW . ' ' . $h . '">';
     foreach ($pts as $i => $p) {
+        $skip = !empty($p['skip']);
         $bh = max(1, round(min($p['ms'], $max) / $max * $h));
         $x  = $i * ($w + $gap);
         $y  = $h - $bh;
-        $cls = $p['ok'] ? 'sp-ok' : 'sp-ko';
-        $out .= '<rect class="' . $cls . '" x="' . $x . '" y="' . $y . '" width="' . $w . '" height="' . $bh . '"><title>' . $p['ms'] . ' ms' . ($p['ok'] ? '' : ' · caído') . '</title></rect>';
+        $cls = $skip ? 'sp-skip' : ($p['ok'] ? 'sp-ok' : 'sp-ko');
+        $rot = $skip ? ' · sin medición (429)' : ($p['ok'] ? '' : ' · caído');
+        $out .= '<rect class="' . $cls . '" x="' . $x . '" y="' . $y . '" width="' . $w . '" height="' . $bh . '"><title>' . $p['ms'] . ' ms' . $rot . '</title></rect>';
     }
     return $out . '</svg>';
 }
@@ -178,13 +207,21 @@ if ($formato === 'json') {
 
     $checks = [];
     foreach ($ultimas as $chk => $u) {
-        $a = $agg[$chk] ?? [];
+        $a    = $agg[$chk] ?? [];
+        $skip = (int) $u['http_code'] === 429;
         $checks[$chk] = [
             'entorno'     => $u['entorno'],
-            'ok'          => (int) $u['ok'],
+            'ok'          => $skip ? null : (int) $u['ok'],
+            'sin_medicion' => $skip,
             'http_code'   => (int) $u['http_code'],
             'latency_ms'  => (int) $u['latency_ms'],
-            'error'       => $u['error'],
+            // Sin key: no exponemos el string de error crudo (puede filtrar rutas
+            // o códigos internos), solo si está operativo o no.
+            'error'       => $skip
+                                ? 'sin medición: el proxy devolvió 429'
+                                : ($detalleCompleto
+                                    ? $u['error']
+                                    : ($u['ok'] ? null : 'no operativo')),
             'ts'          => $u['ts'],
             'uptime_24h'  => pct($a['ok24'] ?? 0, $a['n24'] ?? 0),
             'uptime_7d'   => pct($a['ok7'] ?? 0,  $a['n7']  ?? 0),
@@ -192,13 +229,13 @@ if ($formato === 'json') {
         ];
     }
 
-    if ($dbError !== null) {
+    if ($dbError !== null || !$cronVivo) {
         $estado = 'sin_datos';
-    } elseif (!$cronVivo) {
-        $estado = 'sin_datos';
+    } elseif ($totalMedidos === 0) {
+        $estado = 'sin_medicion';                 // todo 429: no sabemos
     } elseif ($totalKo === 0) {
         $estado = 'operativo';
-    } elseif ($totalKo >= count($ultimas)) {
+    } elseif ($totalKo >= $totalMedidos) {
         $estado = 'caido';
     } else {
         $estado = 'degradado';
@@ -211,6 +248,7 @@ if ($formato === 'json') {
         'cron_vivo'     => $cronVivo,
         'db_error'      => $dbError,
         'checks_ko'     => $totalKo,
+        'checks_sin_medicion' => $totalSkip,
         'checks_total'  => count($ultimas),
         'checks'        => $checks,
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
@@ -222,10 +260,14 @@ if ($formato === 'json') {
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store');
 
+$sufijoSkip = $totalSkip ? " · $totalSkip sin medición (429)" : '';
 $estadoTxt = !$cronVivo
     ? ['sin datos recientes', 'warn']
-    : ($totalKo === 0 ? ['todos los endpoints operativos', 'ok']
-        : ["$totalKo endpoint(s) con problemas", $totalKo >= count($ultimas) ? 'bad' : 'warn']);
+    : ($totalMedidos === 0
+        ? ['sin medición: el proxy está devolviendo 429', 'warn']
+        : ($totalKo === 0
+            ? ['todos los endpoints operativos' . $sufijoSkip, 'ok']
+            : ["$totalKo endpoint(s) con problemas" . $sufijoSkip, $totalKo >= $totalMedidos ? 'bad' : 'warn']));
 
 // Orden: prod, sandbox, shared; dentro por nombre.
 $orden = ['prod' => 0, 'sandbox' => 1, 'shared' => 2];
@@ -272,7 +314,7 @@ usort($claves, function ($a, $b) use ($orden, $ultimas) {
   .pill.ok{background:var(--okbg);color:var(--ok)} .pill.warn{background:var(--warnbg);color:var(--warn)}
   .pill.bad{background:var(--badbg);color:var(--bad)} .pill.na{background:var(--line);color:var(--muted)}
   .u-ok{color:var(--ok)} .u-warn{color:var(--warn)} .u-bad{color:var(--bad)} .u-na{color:var(--muted)}
-  .spark rect.sp-ok{fill:var(--ok)} .spark rect.sp-ko{fill:var(--bad)}
+  .spark rect.sp-ok{fill:var(--ok)} .spark rect.sp-ko{fill:var(--bad)} .spark rect.sp-skip{fill:var(--muted);opacity:.45}
   .spark-empty{color:var(--muted);font-size:12px}
   .err{color:var(--bad);font-size:12px;white-space:normal}
   .inc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:4px 0;margin-top:8px}
@@ -296,7 +338,7 @@ usort($claves, function ($a, $b) use ($orden, $ultimas) {
     $dbError === 'tabla_faltante' ? 'falta crear la tabla api_status_checks' : htmlspecialchars($estadoTxt[0]) ?></div>
 
   <?php if ($dbError === 'tabla_faltante'): ?>
-    <p class="err">La tabla <code>api_status_checks</code> todavía no existe. Corré el <code>CREATE TABLE</code> de <code>CRON.md</code> y agregá la línea de cron (<code>*/3</code>). En cuanto <code>cron_status.php</code> corra una vez, este panel se llena solo.</p>
+    <p class="err">La tabla <code>api_status_checks</code> todavía no existe. Corré el <code>CREATE TABLE</code> de <code>CRON.md</code> y agregá la línea de cron (<code>*/5</code>). En cuanto <code>cron_status.php</code> corra una vez, este panel se llena solo.</p>
   <?php elseif ($dbError !== null): ?>
     <p class="err">Error de base de datos leyendo el histórico: <?= htmlspecialchars($dbError) ?></p>
   <?php elseif (!$cronVivo && $ultimoTs): ?>
@@ -323,14 +365,19 @@ usort($claves, function ($a, $b) use ($orden, $ultimas) {
   ?>
     <tr>
       <td class="ep"><?= htmlspecialchars($ep) ?> <span class="muted" style="font-weight:400"><?= htmlspecialchars($u['metodo']) ?></span></td>
+      <?php $skip = (int) $u['http_code'] === 429; ?>
       <td>
-        <?php if ($u['ok']): ?>
+        <?php if ($skip): ?>
+          <span class="pill na" title="El proxy devolvió 429 en el último chequeo; no se pudo medir.">SIN MEDICIÓN</span>
+        <?php elseif ($u['ok']): ?>
           <span class="pill ok">OK <?= (int) $u['http_code'] ?></span>
         <?php else: ?>
           <span class="pill bad">CAÍDO <?= (int) $u['http_code'] ?: '—' ?></span>
         <?php endif; ?>
         <div class="muted" style="font-size:11px"><?= htmlspecialchars(hace($u['ts'])) ?></div>
-        <?php if (!$u['ok'] && $u['error']): ?><div class="err"><?= htmlspecialchars($u['error']) ?></div><?php endif; ?>
+        <?php if (!$u['ok'] && !$skip && $u['error']): ?>
+          <div class="err"><?= $detalleCompleto ? htmlspecialchars($u['error']) : 'no operativo' ?></div>
+        <?php endif; ?>
       </td>
       <td class="num"><?= (int) $u['latency_ms'] ?> ms</td>
       <td class="num hide"><?= isset($a['lat_avg24']) ? (int) $a['lat_avg24'] . ' ms' : '—' ?></td>
@@ -354,7 +401,7 @@ usort($claves, function ($a, $b) use ($orden, $ultimas) {
           <?php if ($dur >= 60): ?>· <?= floor($dur / 60) ?> min<?php endif; ?>
           · <?= (int) $i['veces'] ?> fallo(s)
           <?php if ($enCurso): ?><span class="pill bad">en curso</span><?php endif; ?>
-          <div class="err"><?= htmlspecialchars($i['error']) ?></div>
+          <?php if ($detalleCompleto): ?><div class="err"><?= htmlspecialchars($i['error']) ?></div><?php endif; ?>
         </div>
       <?php endforeach; ?>
     </div>
@@ -366,6 +413,8 @@ usort($claves, function ($a, $b) use ($orden, $ultimas) {
   <p class="sub" style="margin-top:30px">
     Chequeos sin token / sin body: un <code>401</code>/<code>400</code> limpio = el endpoint está sano
     (PHP corre, ruteo OK, la BD responde al validar el token). Un error PHP en el body marca el check como caído.
+    Un <code>429</code> es el proxy throttleando el chequeo, no el endpoint: se muestra como <em>sin medición</em> y no cuenta para el uptime.
+    <?php if (!$detalleCompleto): ?><br>Vista recortada. Con <code>?key=…</code> se ven los mensajes de error y el detalle de incidentes.<?php endif; ?>
   </p>
 </div>
 </body>
