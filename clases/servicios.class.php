@@ -40,6 +40,22 @@ class servicios extends conexion
     private $fechaNacimiento = "";
     private $CodigoSeguimiento = "";
 
+    // Ver comentario en post() donde se usa: la Dirección que mandan los
+    // clientes por API viene consistentemente como "Calle Número,
+    // Localidad, Provincia de X" - se extrae la Localidad de ahí. Si la
+    // Dirección no matchea ese formato, devuelve $fallback (el campo
+    // "Ciudad" separado que mandó el cliente, puede o no ser correcto).
+    private static function localidadDesdeDireccion(string $direccion, string $fallback = ''): string
+    {
+        if (preg_match('/,\s*([^,]+?)\s*,\s*Provincia\s+de\s+/iu', $direccion, $m)) {
+            $localidad = trim($m[1]);
+            if ($localidad !== '') {
+                return $localidad;
+            }
+        }
+        return $fallback;
+    }
+
     function get_nombre_dia($fecha)
     {
         $fechats = strtotime($fecha); //pasamos a timestamp
@@ -576,7 +592,17 @@ class servicios extends conexion
 
         $this->nombre    = $datos['NombreCompleto'];
         $this->direccion = $datos['Direccion'];
-        $this->ciudad    = $datos['Ciudad'] ?? '';
+        // FIX (2026-09-15, reportado con datos de IGALFER): el campo "Ciudad"
+        // que mandan los clientes por API no es confiable - llega con el
+        // nombre de la CALLE en vez de la ciudad ("San Juan 462" -> Ciudad
+        // "San Juan"), o directamente una ciudad de otro país sin relación
+        // ("Brasil 1425" -> Ciudad "São Paulo", "Canalejas 2075" -> Ciudad
+        // "Pudahuel"). La Dirección, en cambio, viene consistentemente con
+        // el formato "Calle Número, Localidad, Provincia de X" - se parsea
+        // la localidad real de ahí en vez de confiar en el campo separado
+        // (con "Ciudad" como último respaldo si la Dirección no matchea
+        // ese formato).
+        $this->ciudad    = self::localidadDesdeDireccion($this->direccion, $datos['Ciudad'] ?? '');
 
         if (isset($datos['Dni'])) {
             $this->dni        = $datos['Dni'];
