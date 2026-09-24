@@ -108,6 +108,10 @@ class Token
 
         $resp = $db->obtenerDatos($query);
 
+        if ($resp && isset($resp[0]['NdeCliente'])) {
+            conexion::$clienteLog = (int) $resp[0]['NdeCliente'];
+        }
+
         return ($resp && isset($resp[0])) ? $resp[0] : null;
     }
 }

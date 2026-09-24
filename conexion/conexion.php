@@ -15,6 +15,10 @@ class conexion
     private $port;
     private $conexion;
 
+    // Cliente dueño del token del pedido (lo setea Token::validar), para el log de protocolo
+    public static $clienteLog = 0;
+    private static $logProtocoloRegistrado = false;
+
 
     function __construct()
     {
@@ -32,6 +36,66 @@ class conexion
             die();
         }
         $this->conexion->set_charset("utf8");
+
+        // TEMPORAL (desde 2026-09-24): registrar si los clientes entran por http o https,
+        // para saber si se puede activar Force HTTPS sin romper a nadie. Sacar al decidir.
+        if (php_sapi_name() !== 'cli' && !self::$logProtocoloRegistrado) {
+            self::$logProtocoloRegistrado = true;
+            register_shutdown_function([$this, 'logProtocolo']);
+        }
+    }
+
+    /**
+     * Suma 1 al contador diario de api_protocolo_log por (protocolo, endpoint, ip, UA, cliente).
+     * Guarda también las variables crudas del server: detrás del proxy nginx no está
+     * claro cuál indica el protocolo original. Nunca debe romper la respuesta.
+     */
+    public function logProtocolo(): void
+    {
+        try {
+            $https = $_SERVER['HTTPS'] ?? '';
+            $xfp   = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+            $port  = $_SERVER['SERVER_PORT'] ?? '';
+            $crudo = substr("https=$https;xfp=$xfp;port=$port", 0, 60);
+
+            $esHttps = ($xfp !== '') ? (strtolower($xfp) === 'https')
+                : (($https !== '' && strtolower($https) !== 'off') || $port === '443');
+            $protocolo = $esHttps ? 'https' : 'http';
+
+            $endpoint = substr(strtok($_SERVER['REQUEST_URI'] ?? '', '?'), 0, 80);
+            $metodo   = substr($_SERVER['REQUEST_METHOD'] ?? '', 0, 8);
+            $ip       = substr($_SERVER['REMOTE_ADDR'] ?? '', 0, 45);
+            $ua       = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 120);
+            $cliente  = (int) self::$clienteLog;
+            $dia      = date('Y-m-d');
+            $clave    = md5("$dia|$protocolo|$crudo|$endpoint|$metodo|$ip|$ua|$cliente");
+
+            $v = array_map([$this, 'escapar'], [$clave, $dia, $protocolo, $crudo, $endpoint, $metodo, $ip, $ua]);
+            $sql = "INSERT INTO api_protocolo_log
+                        (clave, dia, protocolo, crudo, endpoint, metodo, ip, ua, cliente, n, ultimo)
+                    VALUES ('$v[0]','$v[1]','$v[2]','$v[3]','$v[4]','$v[5]','$v[6]','$v[7]',$cliente,1,NOW())
+                    ON DUPLICATE KEY UPDATE n = n + 1, ultimo = NOW()";
+
+            if (!$this->conexion->query($sql) && $this->conexion->errno === 1146) {
+                $this->conexion->query("CREATE TABLE IF NOT EXISTS api_protocolo_log (
+                    clave     CHAR(32)     NOT NULL PRIMARY KEY,
+                    dia       DATE         NOT NULL,
+                    protocolo VARCHAR(5)   NOT NULL,
+                    crudo     VARCHAR(60)  NOT NULL,
+                    endpoint  VARCHAR(80)  NOT NULL,
+                    metodo    VARCHAR(8)   NOT NULL,
+                    ip        VARCHAR(45)  NOT NULL,
+                    ua        VARCHAR(120) NOT NULL,
+                    cliente   INT          NOT NULL DEFAULT 0,
+                    n         INT          NOT NULL DEFAULT 1,
+                    ultimo    DATETIME     NOT NULL,
+                    KEY idx_dia_protocolo (dia, protocolo)
+                )");
+                $this->conexion->query($sql);
+            }
+        } catch (\Throwable $e) {
+            // el log es accesorio: nunca afectar la respuesta
+        }
     }
 
     private function datosConexion()
