@@ -79,7 +79,15 @@ class conexion
                     VALUES ('$v[0]','$v[1]','$v[2]','$v[3]','$v[4]','$v[5]','$v[6]','$v[7]',$cliente,1,NOW())
                     ON DUPLICATE KEY UPDATE n = n + 1, ultimo = NOW()";
 
-            if (!$this->conexion->query($sql) && $this->conexion->errno === 1146) {
+            // mysqli en PHP 8.1+ tira excepción (no devuelve false) si la tabla no existe
+            try {
+                $ok = $this->conexion->query($sql);
+                $errno = $ok ? 0 : $this->conexion->errno;
+            } catch (\mysqli_sql_exception $e) {
+                $errno = $e->getCode();
+            }
+
+            if ($errno === 1146) {
                 $this->conexion->query("CREATE TABLE IF NOT EXISTS api_protocolo_log (
                     clave     CHAR(32)     NOT NULL PRIMARY KEY,
                     dia       DATE         NOT NULL,
