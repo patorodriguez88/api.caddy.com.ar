@@ -18,6 +18,8 @@ class conexion
     // Cliente dueño del token del pedido (lo setea Token::validar), para el log de protocolo
     public static $clienteLog = 0;
     private static $logProtocoloRegistrado = false;
+    private const LOG_PROTOCOLO_HASTA = '2026-10-08'; // corte automático del log
+    private const LOG_PROTOCOLO_DIAS  = 14;           // retención de filas
 
 
     function __construct()
@@ -39,7 +41,8 @@ class conexion
 
         // TEMPORAL (desde 2026-09-24): registrar si los clientes entran por http o https,
         // para saber si se puede activar Force HTTPS sin romper a nadie. Sacar al decidir.
-        if (php_sapi_name() !== 'cli' && !self::$logProtocoloRegistrado) {
+        // Se apaga solo en LOG_PROTOCOLO_HASTA aunque nadie lo saque.
+        if (php_sapi_name() !== 'cli' && !self::$logProtocoloRegistrado && date('Y-m-d') <= self::LOG_PROTOCOLO_HASTA) {
             self::$logProtocoloRegistrado = true;
             register_shutdown_function([$this, 'logProtocolo']);
         }
@@ -92,6 +95,12 @@ class conexion
                     KEY idx_dia_protocolo (dia, protocolo)
                 )");
                 $this->conexion->query($sql);
+            }
+
+            // Retención: ~1 de cada 200 pedidos borra lo más viejo que LOG_PROTOCOLO_DIAS
+            if (mt_rand(1, 200) === 1) {
+                $this->conexion->query("DELETE FROM api_protocolo_log
+                    WHERE dia < CURDATE() - INTERVAL " . self::LOG_PROTOCOLO_DIAS . " DAY");
             }
         } catch (\Throwable $e) {
             // el log es accesorio: nunca afectar la respuesta
