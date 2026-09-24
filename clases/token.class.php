@@ -31,7 +31,18 @@ class Token
             $norm[strtolower($k)] = $v;
         }
 
-        // 1) Authorization: Bearer xxx  (si algún día llega)
+        // Detrás del proxy del hosting el header Authorization no aparece en
+        // getallheaders(): el .htaccess lo reenvía como variable de entorno.
+        if (!isset($norm['authorization'])) {
+            $auth = $_SERVER['HTTP_AUTHORIZATION']
+                ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+                ?? '';
+            if ($auth !== '') {
+                $norm['authorization'] = $auth;
+            }
+        }
+
+        // 1) Authorization: Bearer xxx
         if (isset($norm['authorization'])) {
             $authHeader = trim($norm['authorization']);
 

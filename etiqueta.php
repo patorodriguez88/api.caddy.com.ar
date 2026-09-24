@@ -7,7 +7,18 @@ require_once 'libs/phpqrcode/qrlib.php';
 
 $_respuestas = new respuestas;
 
-header('Cache-Control: no-store'); // respuesta dinámica: que ningún proxy la cachee
+// Respuesta dinámica y privada (depende del token): que ningún proxy la cachee.
+// El proxy cache de nginx del hosting ignora Cache-Control y cacheaba por URL sin
+// mirar el token: servía errores viejos a pedidos válidos y PDFs a pedidos sin
+// token. X-Accel-Expires: 0 es el header que nginx respeta para no guardarla.
+function headersNoCache(): void
+{
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0, private');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    header('X-Accel-Expires: 0');
+}
+headersNoCache();
 
 
 class EtiquetaService extends conexion
@@ -49,6 +60,7 @@ class EtiquetaService extends conexion
     {
         // 1) PRIMERO BUSCO EN TRANSCLIENTES
         $idOrigen = (int)$idOrigen; // por las dudas
+        $codigoSeguimiento = $this->escapar($codigoSeguimiento);
 
         $query_transclientes = "
         SELECT 
@@ -409,6 +421,24 @@ class EtiquetaService extends conexion
     }
 
     /**
+     * Enviar el PDF con nuestros headers. No usamos Output('I') porque FPDF
+     * manda su propio "Cache-Control: private, max-age=0" y pisa el no-store.
+     */
+    private function enviarPDF(FPDF $pdf, string $filename): void
+    {
+        $contenido = $pdf->Output('S');
+
+        headersNoCache();
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . $filename . '"');
+        header('Content-Length: ' . strlen($contenido));
+        header('X-Robots-Tag: noindex');
+
+        echo $contenido;
+        exit;
+    }
+
+    /**
      * Generar PDF de la etiqueta
      */
     public function generarPDF(array $d)
@@ -424,16 +454,7 @@ class EtiquetaService extends conexion
         // como es una sola etiqueta, es BULTO 1/total
         $this->dibujarEtiquetaPDF($pdf, $d, 1, $totalBultos);
 
-        header('Content-Type: application/pdf');
-        $filename = $codigo . '.pdf';
-        header('Content-Disposition: inline; filename="' . $filename . '"');
-        header("X-Robots-Tag: noindex");
-        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-        header('Pragma: no-cache');
-        header('Expires: 0');
-
-        $pdf->Output('I', $filename);
-        exit;
+        $this->enviarPDF($pdf, $codigo . '.pdf');
     }
 
 
@@ -491,17 +512,7 @@ class EtiquetaService extends conexion
                     $this->dibujarEtiquetaPDF($pdf, $datosEtiqueta, $i, $cantidad);
                 }
 
-                header('Content-Type: application/pdf');
-                $filename = $codigoBase . '.pdf';
-                header('Content-Disposition: inline; filename="' . $filename . '"');
-                header("X-Robots-Tag: noindex");
-
-                header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-                header('Pragma: no-cache');
-                header('Expires: 0');
-
-                $pdf->Output('I', $filename);
-                exit;
+                $this->enviarPDF($pdf, $codigoBase . '.pdf');
             }
 
             // cantidad = 1 → uso el flujo normal
@@ -525,19 +536,22 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method !== 'GET') {
     header('Content-Type: application/json');
     $datos = $_respuestas->error_405();
-    echo json_encode($datos);
     http_response_code(405);
+    echo json_encode($datos);
     exit;
 }
 
-// 1) Obtener token (Bearer o ?token=)
+// 1) Obtener token (Authorization: Bearer, X-Api-Token o ?token=)
+// OJO: el status va SIEMPRE antes del echo. El server no tiene output_buffering,
+// así que un http_response_code() después del echo no tiene efecto: el error
+// salía como 200 y el proxy cache lo guardaba.
 $token = Token::obtenerToken();
 
 if (!$token) {
     header('Content-Type: application/json');
-    $resp = $_respuestas->error_400("Debe enviar token (Bearer o query)");
-    echo json_encode($resp);
+    $resp = $_respuestas->error_400("Debe enviar token (Authorization: Bearer, X-Api-Token o ?token=)");
     http_response_code(400);
+    echo json_encode($resp);
     exit;
 }
 // 2) Instanciar servicio (tiene la conexión a BD)
@@ -549,8 +563,8 @@ $tokenData = Token::validar($token, $svc);
 if (!$tokenData) {
     header('Content-Type: application/json');
     $resp = $_respuestas->error_401("Token inválido o vencido");
-    echo json_encode($resp);
     http_response_code(401);
+    echo json_encode($resp);
     exit;
 }
 // 4) Tomar NdeCliente como idOrigen
@@ -562,8 +576,8 @@ $formato = $_GET['formato'] ?? 'pdf';
 if (!$codigo) {
     header('Content-Type: application/json');
     $resp = $_respuestas->error_400('Falta parámetro: codigo');
-    echo json_encode($resp);
     http_response_code(400);
+    echo json_encode($resp);
     exit;
 }
 // 5) Procesar etiqueta (PDF o ZPL)

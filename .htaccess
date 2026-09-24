@@ -4,6 +4,12 @@ IndexIgnore *
 
 RewriteEngine On
 
+# Reenviar el header Authorization a PHP (si no, "Authorization: Bearer" no llega
+# a getallheaders() y el cliente recibe "Debe enviar token"). Va antes de cualquier
+# regla [L]. Ver Token::obtenerToken().
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
 # Bloquear acceso directo a código interno y de conexión (solo se usan via require/include)
 # IMPORTANTE: esta regla va ANTES de "dejar pasar archivos/carpetas existentes",
 # si no, un archivo real como conexion/config se serviría igual como estático.
