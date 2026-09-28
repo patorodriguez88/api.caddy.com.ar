@@ -57,23 +57,42 @@ class MlMensajeria extends conexion
     public static function urlAutorizacion(string $state): string
     {
         return 'https://auth.mercadolibre.com.ar/authorization?' . http_build_query([
-            'response_type' => 'code',
-            'client_id'     => WebhookMlReceiver::CLIENT_ID,
-            'redirect_uri'  => self::REDIRECT_URI,
-            'state'         => $state,
+            'response_type'         => 'code',
+            'client_id'             => WebhookMlReceiver::CLIENT_ID,
+            'redirect_uri'          => self::REDIRECT_URI,
+            'state'                 => $state,
+            'code_challenge'        => rtrim(strtr(base64_encode(hash('sha256', self::codeVerifier($state), true)), '+/', '-_'), '='),
+            'code_challenge_method' => 'S256',
         ]);
     }
 
+    /**
+     * PKCE sin guardar nada: el verifier se deriva del state (que ya va firmado),
+     * así el callback lo puede recalcular.
+     */
+    private static function codeVerifier(string $state): string
+    {
+        return hash_hmac('sha256', 'pkce|' . $state, WebhookMlReceiver::CLIENT_SECRET);
+    }
+
     /** Canjea el code del OAuth y guarda la cuenta. Devuelve [ok, mensaje] */
-    public function conectar(string $code): array
+    public function conectar(string $code, string $state): array
     {
         [$http, $r] = self::oauthToken([
-            'grant_type'   => 'authorization_code',
-            'code'         => $code,
-            'redirect_uri' => self::REDIRECT_URI,
+            'grant_type'    => 'authorization_code',
+            'code'          => $code,
+            'redirect_uri'  => self::REDIRECT_URI,
+            'code_verifier' => self::codeVerifier($state),
         ]);
         if ($http !== 200 || empty($r['access_token']) || empty($r['user_id'])) {
-            return [false, 'ML rechazó la autorización: ' . substr(($r['error'] ?? '') . ' ' . ($r['message'] ?? ''), 0, 150)];
+            // El mismo code llegó dos veces (recarga o doble pedido) y el primero ya guardó la cuenta
+            $c = $this->cuenta();
+            if ($c && strtotime($c['actualizado']) > time() - 300) {
+                return [true, 'Cuenta conectada: ' . $c['nickname'] . ' (user_id ' . $c['user_id'] . ')'];
+            }
+            $detalle = ['http' => $http] + array_intersect_key($r, array_flip(['error', 'message', 'status', 'cause']));
+            parent::logMeli('ML_MENSAJERIA_OAUTH_FALLIDO', $detalle);
+            return [false, 'ML rechazó la autorización: ' . substr(json_encode($detalle, JSON_UNESCAPED_UNICODE), 0, 400)];
         }
 
         [, $me] = self::http('GET', 'https://api.mercadolibre.com/users/me', $r['access_token']);

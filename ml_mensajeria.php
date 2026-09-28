@@ -55,7 +55,7 @@ if (isset($_GET['code']) || isset($_GET['error'])) {
     if (isset($_GET['error'])) {
         pagina('Autorización cancelada', '<p class="err">' . $h($_GET['error_description'] ?? $_GET['error']) . '</p>');
     }
-    [$ok, $msg] = $ml->conectar((string)$_GET['code']);
+    [$ok, $msg] = $ml->conectar((string)$_GET['code'], (string)$_GET['state']);
     pagina($ok ? 'Mensajería conectada' : 'No se pudo conectar', '<p class="' . ($ok ? 'ok' : 'err') . '">' . $h($msg) . '</p>');
 }
 
