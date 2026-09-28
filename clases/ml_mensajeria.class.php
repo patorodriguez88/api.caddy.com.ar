@@ -166,7 +166,9 @@ class MlMensajeria extends conexion
 
         $filtro = $solo
             ? "t.shipments_id = '" . $solo . "'"
-            : "t.Fecha >= CURDATE() - INTERVAL " . max(0, $dias) . " DAY
+            // ML rechaza los envíos ya finalizados (entregado, cancelado, no entregado): se reporta
+            // al empezar a gestionarlo, así que solo van los que todavía no se entregaron
+            : "t.Entregado = 0 AND t.Fecha >= CURDATE() - INTERVAL " . max(0, $dias) . " DAY
                AND (e.shipment_id IS NULL
                     OR (e.http_code NOT IN (" . implode(',', self::DEFINITIVOS) . ")
                         AND e.intentos < " . self::MAX_INTENTOS . "
