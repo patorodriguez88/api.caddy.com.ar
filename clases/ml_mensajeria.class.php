@@ -97,7 +97,8 @@ class MlMensajeria extends conexion
 
         [, $me] = self::http('GET', 'https://api.mercadolibre.com/users/me', $r['access_token']);
         $this->guardarCuenta((int)$r['user_id'], (string)($me['nickname'] ?? ''), $r);
-        return [true, 'Cuenta conectada: ' . ($me['nickname'] ?? '') . ' (user_id ' . $r['user_id'] . ')'];
+        // Los permisos que ML le dio al token (courier-shipment necesita "write")
+        return [true, 'Cuenta conectada: ' . ($me['nickname'] ?? '') . ' (user_id ' . $r['user_id'] . '). Permisos del token: ' . ($r['scope'] ?? '(ML no los informó)')];
     }
 
     /** Cuenta conectada (sin tokens), o null */
