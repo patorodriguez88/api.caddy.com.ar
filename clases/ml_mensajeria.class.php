@@ -132,10 +132,18 @@ class MlMensajeria extends conexion
     private function guardarCuenta(int $userId, string $nickname, array $tok): void
     {
         $expira = date('Y-m-d H:i:s', time() + (int)($tok['expires_in'] ?? 21600));
+        // INSERT ... ON DUPLICATE (no REPLACE: REPLACE pide además permiso de DELETE)
+        $v = [
+            'user_id'       => (string)$userId,
+            'nickname'      => $this->escapar($nickname),
+            'access_token'  => $this->escapar($tok['access_token']),
+            'refresh_token' => $this->escapar($tok['refresh_token'] ?? ''),
+        ];
         parent::nonQuery(
-            "REPLACE INTO ml_mensajeria (id, user_id, nickname, access_token, refresh_token, expira, actualizado)
-             VALUES (1, " . $userId . ", '" . $this->escapar($nickname) . "', '" . $this->escapar($tok['access_token']) . "',
-                     '" . $this->escapar($tok['refresh_token']) . "', '" . $expira . "', NOW())"
+            "INSERT INTO ml_mensajeria (id, user_id, nickname, access_token, refresh_token, expira, actualizado)
+             VALUES (1, {$v['user_id']}, '{$v['nickname']}', '{$v['access_token']}', '{$v['refresh_token']}', '$expira', NOW())
+             ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), nickname = VALUES(nickname), access_token = VALUES(access_token),
+                refresh_token = VALUES(refresh_token), expira = VALUES(expira), actualizado = NOW()"
         );
     }
 

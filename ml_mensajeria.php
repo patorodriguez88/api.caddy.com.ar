@@ -44,6 +44,12 @@ function pagina(string $titulo, string $cuerpo): void
 }
 
 $h = fn($s) => htmlspecialchars((string)$s);
+
+// Nunca una página en blanco: en el callback, perder el error obliga a repetir el OAuth
+set_exception_handler(function (Throwable $e) {
+    http_response_code(500);
+    pagina('Error', '<p class="err">' . htmlspecialchars($e->getMessage()) . '</p><p>Volvé a la pantalla con la clave y tocá Conectar de nuevo (no refresques esta página).</p>');
+});
 $ml = new MlMensajeria();
 
 // 1) Callback del OAuth
