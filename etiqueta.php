@@ -405,7 +405,7 @@ class EtiquetaService extends conexion
 
         // Texto instrucciones + QR seguimiento
         $zpl .= "^FO10,250^A0N,16,18^FDPodes seguir tu envío en nuestra web con el Código " . $codigo . " o escaneando con tu teléfono el QR.^FS\n";
-        $zpl .= "^FO260,270^BY4,4,0^BQN,2,4^FDLA,{\"id\":\"https://www.caddy.com.ar/seguimiento.html?codigo=" . $codigo . "\",\"sender_id\":3987654312,\"hash_code\":\"fyePAxtasdOM/kZgZZDSAH+h1JBckgknsg2R3754ERKI=\",\"security_digit\":\"0\"}^FS\n";
+        $zpl .= "^FO260,270^BY4,4,0^BQN,2,4^FDLA,{\"id\":\"https://web.caddy.com.ar/seguimiento.html?codigo=" . $codigo . "\",\"sender_id\":3987654312,\"hash_code\":\"fyePAxtasdOM/kZgZZDSAH+h1JBckgknsg2R3754ERKI=\",\"security_digit\":\"0\"}^FS\n";
 
         // Código Wepoint (en código de barras 2D también)
         $zpl .= "^FO10,290^A0N,20,20^FDCódigo Wepoint:^FS\n";
