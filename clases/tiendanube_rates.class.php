@@ -101,9 +101,11 @@ class TiendanubeRates extends conexion
             $diaEntrega = $loc['DiaSalida'] ?? '';
         }
 
-        $this->guardarCotizacion($cliente, $price, $precioFinal, $seguro, $localidad, $lado, $peso, $diaEntrega, $cantidad);
+        $ahora   = date('Y-m-d\TH:i:sO');
+        $entrega = $diaEntrega ? self::proximaEntrega($diaEntrega, $esCapital) : $ahora;
 
-        $ahora = date('Y-m-d\TH:i:sO');
+        $this->guardarCotizacion($cliente, $price, $precioFinal, $seguro, $localidad, $lado, $peso, substr($entrega, 0, 10), $cantidad);
+
         $rate = [
             'name'              => 'Caddy. ' . $price['Titulo'],
             'code'              => 'Simple', // tiene que coincidir con la opción activa del carrier en TN
@@ -112,7 +114,7 @@ class TiendanubeRates extends conexion
             'currency'          => 'ARS',
             'type'              => 'ship',
             'min_delivery_date' => $ahora,
-            'max_delivery_date' => $diaEntrega ? self::proximaEntrega($diaEntrega, $esCapital) : $ahora,
+            'max_delivery_date' => $entrega,
             'phone_required'    => true,
             'reference'         => $price['Titulo'],
         ];
@@ -219,7 +221,7 @@ class TiendanubeRates extends conexion
     }
 
     /** Nunca debe romper la cotización: si el INSERT falla, TN igual recibe la tarifa */
-    private function guardarCotizacion(array $cliente, array $price, float $total, float $seguro, string $localidad, int $lado, float $peso, string $diaEntrega, int $cantidad): void
+    private function guardarCotizacion(array $cliente, array $price, float $total, float $seguro, string $localidad, int $lado, float $peso, string $fechaEntrega, int $cantidad): void
     {
         try {
             parent::nonQueryId(
@@ -229,7 +231,7 @@ class TiendanubeRates extends conexion
                    '" . $cantidad . "', '" . ($total - $seguro) . "', '" . $total . "',
                    '" . $this->escapar($localidad) . "', '" . $lado . "', '" . $lado . "', '" . $lado . "', '" . $peso . "',
                    '" . $this->escapar($price['Titulo']) . "', 'Domicilio', '" . round((float)$price['Kilometros']) . "',
-                   '" . $this->escapar($diaEntrega) . "', 'Tienda Nube')"
+                   '" . $this->escapar($fechaEntrega) . "', 'Tienda Nube')"
             );
         } catch (Throwable $e) {
             $this->log('ERROR_COTIZACION', 0, ['error' => $e->getMessage()]);
