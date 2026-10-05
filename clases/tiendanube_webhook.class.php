@@ -52,7 +52,9 @@ class TiendanubeWebhook extends conexion
             return ['code' => 200, 'body' => ['ok' => 1, 'ignorado' => 'evento']];
         }
 
-        if ($this->obtenerDatos("SELECT id FROM Importaciones WHERE shipments_id = '" . $orderId . "' AND Eliminado = 0 LIMIT 1")) {
+        // Cualquier fila previa del pedido, también las descartadas: si el operador lo descartó en
+        // Integraciones y TN reenvía el webhook, no tiene que reaparecer.
+        if ($this->obtenerDatos("SELECT id FROM Importaciones WHERE shipments_id = '" . $orderId . "' LIMIT 1")) {
             $this->log('DUPLICADO', $storeId, ['orden' => $orderId]);
             return ['code' => 200, 'body' => ['ok' => 1, 'ignorado' => 'duplicado']];
         }
