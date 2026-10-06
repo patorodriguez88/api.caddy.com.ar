@@ -23,6 +23,9 @@ SHELL="/bin/bash"
 # para el disparo HTTP y para cron-job.org.
 */5 * * * * CRON_STATUS_SECRET=<secret-rotado> /usr/bin/flock -n /home/dinter6/tmp/cron_status.lock /opt/cpanel/ea-php82/root/usr/bin/php /home/dinter6/api.caddy.com.ar/api/cron_status.php >> /home/dinter6/logs/cron_status.log 2>&1
 
+# Estados de envío a Tienda Nube (tracking events) — cada 5 min. Ver clases/tiendanube_tracking.class.php
+*/5 * * * * /usr/bin/flock -n /home/dinter6/tmp/cron_tn_tracking.lock /opt/cpanel/ea-php82/root/usr/bin/php /home/dinter6/api.caddy.com.ar/api/cron_tiendanube_tracking.php >> /home/dinter6/logs/cron_tn_tracking.log 2>&1
+
 # Truncar los logs, domingos 4am
 0 4 * * 0 : > /home/dinter6/logs/cron_worker.log ; : > /home/dinter6/logs/cron_webhooks.log ; : > /home/dinter6/logs/cron_status.log
 ```
