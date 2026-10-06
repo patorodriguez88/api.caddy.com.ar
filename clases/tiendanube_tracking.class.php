@@ -14,6 +14,9 @@
  * En vez de enganchar cada lugar que escribe Seguimiento, cron_tiendanube_tracking.php corre
  * cada pocos minutos, toma las filas nuevas de los envíos de TN y las manda. Lo informado queda
  * en TiendaNube_tracking (una fila por Seguimiento.id), así no se repite nada.
+ *
+ * La tabla se crea a mano (Integraciones/tiendanube/schema_tracking.sql): el usuario de la base
+ * de la API no tiene privilegio CREATE (ver servicios.class.php).
  */
 
 require_once __DIR__ . "/../conexion/conexion.php";
@@ -65,7 +68,6 @@ class TiendanubeTracking extends conexion
     public function procesar(): array
     {
         $inicio = time();
-        $this->asegurarTabla();
 
         $estados = "'En Origen','Colectado del Cliente','Retirado del Cliente','Validado en Warehouse',"
                  . "'En Transito','Entregado al Cliente','No se pudo entregar','Devuelto al Cliente'";
@@ -182,26 +184,6 @@ class TiendanubeTracking extends conexion
              VALUES ('" . (int)$f['id'] . "', '" . $this->escapar($f['CodigoSeguimiento']) . "', '$orderId', '$store',
                      '" . $this->escapar($foId) . "', '" . $this->escapar((string)$status) . "', '$http',
                      '" . $this->escapar($respuesta) . "')"
-        );
-    }
-
-    private function asegurarTabla(): void
-    {
-        $this->nonQuery(
-            "CREATE TABLE IF NOT EXISTS TiendaNube_tracking (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                seguimiento_id INT NOT NULL,
-                codigo VARCHAR(20) NOT NULL,
-                order_id BIGINT NOT NULL,
-                store_id BIGINT NOT NULL,
-                fo_id VARCHAR(40) NOT NULL DEFAULT '',
-                status VARCHAR(40) NOT NULL DEFAULT '',
-                http SMALLINT NOT NULL DEFAULT 0,
-                respuesta TEXT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY uq_seguimiento (seguimiento_id),
-                KEY idx_order (order_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
     }
 }
