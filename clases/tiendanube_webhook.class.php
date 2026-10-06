@@ -40,6 +40,15 @@ class TiendanubeWebhook extends conexion
         $storeId = (int) ($datos['store_id'] ?? 0);
         $orderId = (int) ($datos['id'] ?? 0);
         $evento = (string) ($datos['event'] ?? '');
+        if ($evento === 'app/uninstalled' && $storeId > 0) {
+            // El comerciante desinstaló la app: TN ya no acepta el token y borra el carrier. Se
+            // limpian para que no queden datos inválidos y la reinstalación arranque limpia.
+            // El id de tienda queda hasta store/redact (sistema TiendaNube/webhooks/store_redact.php).
+            $ok = $this->nonQuery("UPDATE Clientes SET token_tiendanube = NULL, carrier_id_tn = NULL
+                                    WHERE user_id_tn = '" . $storeId . "'");
+            $this->log('DESINSTALADA', $storeId, ['filas' => $ok]);
+            return ['code' => 200, 'body' => ['ok' => 1, 'desinstalada' => 1]];
+        }
         if ($storeId <= 0 || $orderId <= 0) {
             $this->log('DATOS_INVALIDOS', $storeId, ['raw' => mb_substr($raw, 0, 300)]);
             return ['code' => 400, 'body' => ['ok' => 0, 'error' => 'faltan_datos']];
