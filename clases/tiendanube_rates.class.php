@@ -51,45 +51,32 @@ class TiendanubeRates extends conexion
             return ['rates' => []];
         }
 
-        // Totales del carrito: la vieja arma una caja cúbica con el volumen total
-        $cantidad = 0;
-        $valor    = 0.0;
-        $gramos   = 0;
-        $volumen  = 0.0; // cm³
-        foreach ($items as $it) {
-            $q    = isset($it['quantity']) ? (int)$it['quantity'] : 1;
-            $dims = is_array($it['dimensions'] ?? null) ? $it['dimensions'] : [];
-            $w = isset($dims['width'])  ? (float)$dims['width']  : 10;
-            $h = isset($dims['height']) ? (float)$dims['height'] : 10;
-            $d = isset($dims['depth'])  ? (float)$dims['depth']  : 10;
-
-            $cantidad += $q;
-            $valor    += (float)($it['price'] ?? 0) * $q;
-            $gramos   += (int)($it['grams'] ?? 0) * $q;
-            $volumen  += ($w * $h * $d) * $q;
-        }
-        $lado = (int)ceil(pow(max(1, $volumen), 1 / 3));
-        $peso = max(0.1, $gramos / 1000);
-
         $esCapital = ($cp >= 5000 && $cp <= 5023);
-        $price = $esCapital ? $this->tarifaFlex() : $this->tarifaGrilla($cp, $lado * $lado * $lado);
-        if (!$price || (int)$price['id'] <= 0) {
-            $this->log('SIN_PRECIO', $storeId, ['cp' => $cp, 'lado' => $lado]);
+
+        // price_merchant = lo que cuesta el envío de todo el carrito (lo paga el vendedor).
+        // price = lo que paga el comprador: solo los productos SIN envío gratis (0 si todos
+        // tienen envío gratis). Misma fórmula para los dos.
+        $todo = $this->costo($items, $cp, $esCapital, $storeId);
+        if (!$todo) {
             return ['rates' => []];
         }
-
-        // Seguro: solo si el valor declarado supera el mínimo
-        $minimoSeguro = $this->minimoSeguro();
-        $seguro = ($valor > $minimoSeguro) ? round($valor) * (float)$price['Seguro'] / 100 : 0;
-
-        // La vieja calculaba la tarifa con Cantidad=1 y después aplicaba el +50%
-        // por unidad sobre el TOTAL (tarifa + seguro). Se respeta tal cual.
-        $totalUnitario = round((float)$price['PrecioVenta'] + $seguro);
-        if ($totalUnitario <= 0) {
-            $this->log('TOTAL_CERO', $storeId, ['codigo' => $price['Codigo']]);
-            return ['rates' => []];
+        $pagos = array_values(array_filter($items, function ($it) {
+            return empty($it['free_shipping']);
+        }));
+        if (!$pagos) {
+            $precioComprador = 0.0;
+        } elseif (count($pagos) === count($items)) {
+            $precioComprador = $todo['precio'];
+        } else {
+            $parcial = $this->costo($pagos, $cp, $esCapital, $storeId);
+            $precioComprador = $parcial ? min($parcial['precio'], $todo['precio']) : $todo['precio'];
         }
-        $precioFinal = self::porCantidad($totalUnitario, max(1, $cantidad));
+        $price = $todo['tarifa'];
+        $precioFinal = $todo['precio'];
+        $seguro = $todo['seguro'];
+        $lado = $todo['lado'];
+        $peso = $todo['peso'];
+        $cantidad = $todo['cantidad'];
 
         if ($esCapital) {
             $localidad = 'Cordoba Capital';
@@ -109,7 +96,7 @@ class TiendanubeRates extends conexion
         $rate = [
             'name'              => 'Caddy. ' . $price['Titulo'],
             'code'              => 'Simple', // tiene que coincidir con la opción activa del carrier en TN
-            'price'             => $precioFinal,
+            'price'             => $precioComprador,
             'price_merchant'    => $precioFinal,
             'currency'          => 'ARS',
             'type'              => 'ship',
@@ -119,8 +106,62 @@ class TiendanubeRates extends conexion
             'reference'         => $price['Titulo'],
         ];
 
-        $this->log('OK', $storeId, ['cp' => $cp, 'cant' => $cantidad, 'precio' => $precioFinal, 'tarifa' => $price['Titulo']]);
+        $this->log('OK', $storeId, ['cp' => $cp, 'cant' => $cantidad, 'precio' => $precioComprador, 'precio_vendedor' => $precioFinal, 'tarifa' => $price['Titulo']]);
         return ['rates' => [$rate]];
+    }
+
+    /**
+     * Costo de envío de un conjunto de productos del carrito (misma fórmula que la API vieja):
+     * caja cúbica con el volumen total, FLEX en Capital o grilla Web por volumen y km,
+     * seguro si el valor supera el mínimo y +50% por unidad desde la 3ra.
+     * @return array{precio:float, seguro:float, tarifa:array, lado:int, peso:float, cantidad:int}|null
+     */
+    private function costo(array $items, int $cp, bool $esCapital, int $storeId): ?array
+    {
+        $cantidad = 0;
+        $valor    = 0.0;
+        $gramos   = 0;
+        $volumen  = 0.0; // cm³
+        foreach ($items as $it) {
+            $q    = isset($it['quantity']) ? (int)$it['quantity'] : 1;
+            $dims = is_array($it['dimensions'] ?? null) ? $it['dimensions'] : [];
+            $w = isset($dims['width'])  ? (float)$dims['width']  : 10;
+            $h = isset($dims['height']) ? (float)$dims['height'] : 10;
+            $d = isset($dims['depth'])  ? (float)$dims['depth']  : 10;
+
+            $cantidad += $q;
+            $valor    += (float)($it['price'] ?? 0) * $q;
+            $gramos   += (int)($it['grams'] ?? 0) * $q;
+            $volumen  += ($w * $h * $d) * $q;
+        }
+        $lado = (int)ceil(pow(max(1, $volumen), 1 / 3));
+        $peso = max(0.1, $gramos / 1000);
+
+        $tarifa = $esCapital ? $this->tarifaFlex() : $this->tarifaGrilla($cp, $lado * $lado * $lado);
+        if (!$tarifa || (int)$tarifa['id'] <= 0) {
+            $this->log('SIN_PRECIO', $storeId, ['cp' => $cp, 'lado' => $lado]);
+            return null;
+        }
+
+        // Seguro: solo si el valor declarado supera el mínimo
+        $minimoSeguro = $this->minimoSeguro();
+        $seguro = ($valor > $minimoSeguro) ? round($valor) * (float)$tarifa['Seguro'] / 100 : 0;
+
+        // La vieja calculaba la tarifa con Cantidad=1 y después aplicaba el +50%
+        // por unidad sobre el TOTAL (tarifa + seguro). Se respeta tal cual.
+        $totalUnitario = round((float)$tarifa['PrecioVenta'] + $seguro);
+        if ($totalUnitario <= 0) {
+            $this->log('TOTAL_CERO', $storeId, ['codigo' => $tarifa['Codigo']]);
+            return null;
+        }
+        return [
+            'precio'   => self::porCantidad($totalUnitario, max(1, $cantidad)),
+            'seguro'   => $seguro,
+            'tarifa'   => $tarifa,
+            'lado'     => $lado,
+            'peso'     => $peso,
+            'cantidad' => $cantidad,
+        ];
     }
 
     /** +50% de la tarifa por cada unidad desde la 3ra */
@@ -181,7 +222,7 @@ class TiendanubeRates extends conexion
         if ($storeId <= 0) {
             return null;
         }
-        $r = parent::obtenerDatos(
+        $r = $this->obtenerDatos(
             "SELECT id, nombrecliente FROM Clientes WHERE user_id_tn = '" . $storeId . "'
              ORDER BY (carrier_id_tn IS NULL OR carrier_id_tn IN ('', '0')), id LIMIT 1"
         );
@@ -190,7 +231,7 @@ class TiendanubeRates extends conexion
 
     private function tarifaFlex(): ?array
     {
-        $r = parent::obtenerDatos("SELECT id, Titulo, PrecioVenta, Kilometros, Seguro, Codigo FROM Productos WHERE Codigo='" . self::CODIGO_FLEX . "'");
+        $r = $this->obtenerDatos("SELECT id, Titulo, PrecioVenta, Kilometros, Seguro, Codigo FROM Productos WHERE Codigo='" . self::CODIGO_FLEX . "'");
         return $r[0] ?? null;
     }
 
@@ -200,7 +241,7 @@ class TiendanubeRates extends conexion
         if (!$loc || $loc['Km'] === null) {
             return null;
         }
-        $r = parent::obtenerDatos(
+        $r = $this->obtenerDatos(
             "SELECT id, Titulo, PrecioVenta, Kilometros, Seguro, Codigo FROM Productos
              WHERE Grupo='Web' AND m3 >= '" . $volumen . "' AND Kilometros >= '" . (float)$loc['Km'] . "'
              ORDER BY PrecioVenta ASC LIMIT 1"
@@ -210,13 +251,13 @@ class TiendanubeRates extends conexion
 
     private function localidadPorCp(int $cp): ?array
     {
-        $r = parent::obtenerDatos("SELECT Km, Localidad, DiaSalida FROM Localidades WHERE Cp = '" . $cp . "' LIMIT 1");
+        $r = $this->obtenerDatos("SELECT Km, Localidad, DiaSalida FROM Localidades WHERE Cp = '" . $cp . "' LIMIT 1");
         return $r[0] ?? null;
     }
 
     private function minimoSeguro(): float
     {
-        $r = parent::obtenerDatos("SELECT Valor FROM Variables WHERE Nombre='MontoMinimoSeguro'");
+        $r = $this->obtenerDatos("SELECT Valor FROM Variables WHERE Nombre='MontoMinimoSeguro'");
         return (float)($r[0]['Valor'] ?? 0);
     }
 
@@ -224,7 +265,7 @@ class TiendanubeRates extends conexion
     private function guardarCotizacion(array $cliente, array $price, float $total, float $seguro, string $localidad, int $lado, float $peso, string $fechaEntrega, int $cantidad): void
     {
         try {
-            parent::nonQueryId(
+            $this->nonQueryId(
                 "INSERT INTO Cotizaciones (Fecha, RazonSocial, NCliente, Cantidad, Precio, Total,
                    LocalidadDestino, Ancho, Alto, Largo, Peso, Tarifa, EntregaEn, Kilometros, FechaEntrega, Observaciones)
                  VALUES ('" . date('Y-m-d') . "', '" . $this->escapar($cliente['nombrecliente']) . "', '" . (int)$cliente['id'] . "',
