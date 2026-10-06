@@ -39,6 +39,8 @@ class servicios extends conexion
     private $valordec = "";
     private $fechaNacimiento = "";
     private $CodigoSeguimiento = "";
+    // Canal de ingreso que se graba en PreVenta.Origen (ver sistema: migraciones/2026_10_06_origen_envios.sql)
+    private $canal = "API";
 
     // Ver comentario en post() donde se usa: la Dirección que mandan los
     // clientes por API viene consistentemente como "Calle Número,
@@ -632,6 +634,11 @@ class servicios extends conexion
             $this->Observaciones = $Obs_api . ' ' . $respuesta_actualizacion;
         }
 
+        // CANAL: los importadores de Excel (Plataforma y sistema) entran por esta misma API y lo
+        // avisan en "Canal"; cualquier otro valor (o ninguno) es un cliente de la API.
+        $canal = strtoupper(trim((string)($datos['Canal'] ?? '')));
+        $this->canal = in_array($canal, ['EXCEL_PLATAFORMA', 'EXCEL_SISTEMA'], true) ? $canal : 'API';
+
         // SERVICIO
         if (isset($datos['Servicio']) && $datos['Servicio'] == 3) {
             $this->servicio = 0;
@@ -1054,11 +1061,11 @@ class servicios extends conexion
 
         $query_preventa = "INSERT INTO `PreVenta`(`Fecha`, `RazonSocial`, `NCliente`, `TipoDeComprobante`, `NumeroComprobante`, `Cantidad`,`Precio`,`Total`,
         `ClienteDestino`, `idClienteDestino`, `DomicilioDestino`, `LocalidadDestino`,`NumeroVenta`, `DomicilioOrigen`,`LocalidadOrigen`, `Usuario`,
-        `EntregaEn`,`Observaciones`,`Hora`,`Telefono`,`Celular`,`Retirado`,`ValorDeclarado`,`idProveedor`,`Length`, `Width`, `Height`, `Weight`,`cpdestino`,`Cobranza`,`CodigoSeguimiento`)VALUES
+        `EntregaEn`,`Observaciones`,`Hora`,`Telefono`,`Celular`,`Retirado`,`ValorDeclarado`,`idProveedor`,`Length`, `Width`, `Height`, `Weight`,`cpdestino`,`Cobranza`,`CodigoSeguimiento`,`Origen`)VALUES
         ('" . $Fecha . "','" . parent::escapar($this->ClienteOrigen) . "','" . parent::escapar($this->idClienteOrigen) . "','" . parent::escapar($titulo_rate) . "','"  . $Codigo . "','" . $this->cantidad . "','" . $Precio . "','" . $Total . "','" . $ClienteDestinoSql . "',
         '" . parent::escapar($idClienteDestino) . "','" . $direccionSql . "','" . $ciudadSql . "','" . parent::escapar($DatoNV) . "','" . $DireccionClienteOrigenSql . "','Cordoba','" . parent::escapar($this->token) . "',
         'Domicilio','" . parent::escapar($this->Observaciones) . "','" . $Hora . "','" . parent::escapar($this->telefono) . "','" . parent::escapar($this->telefono) . "','" . $this->servicio . "','" . parent::escapar($this->valordec) . "','" . parent::escapar($this->idproveedor) . "',
-        '" . parent::escapar($length) . "','" . parent::escapar($width) . "','" . parent::escapar($height) . "','" . parent::escapar($WeightTotal) . "','" . parent::escapar($this->codigoPostal) . "','" . parent::escapar($cobranza) . "','" . $CodigoSeguimiento . "')";
+        '" . parent::escapar($length) . "','" . parent::escapar($width) . "','" . parent::escapar($height) . "','" . parent::escapar($WeightTotal) . "','" . parent::escapar($this->codigoPostal) . "','" . parent::escapar($cobranza) . "','" . $CodigoSeguimiento . "','" . parent::escapar($this->canal) . "')";
 
         $resp_preventa = parent::nonQueryId($query_preventa);
         $codigoPostal = $this->codigoPostal;
