@@ -21,13 +21,12 @@ class auth extends conexion
         } else {
             //todo esta bien 
             $usuario = $datos['usuario'];
-            $password = $datos['password'];
-            $password = parent::encriptar($password);
+            $password = (string)$datos['password'];
             $datos = $this->obtenerDatosUsuario($usuario);
             if ($datos) {
                 //verificar si la contraseña es igual
 
-                if ($password == $datos[0]['PASSWORD']) {
+                if ($this->passwordValida($password, (string)$datos[0]['PASSWORD'])) {
 
                     if ($datos[0]['Estado'] == "Activo") {
                         //VERIFICAR TOKEN
@@ -77,8 +76,19 @@ class auth extends conexion
         }
     }
 
+    // Las cuentas nuevas (registro y recupero de la plataforma) guardan password_hash(); las viejas, md5.
+    private function passwordValida(string $ingresada, string $guardada): bool
+    {
+        if ($guardada === '') return false;
+        if (str_starts_with($guardada, '$2y$') || str_starts_with($guardada, '$argon')) {
+            return password_verify($ingresada, $guardada);
+        }
+        return hash_equals(strtolower($guardada), parent::encriptar($ingresada));
+    }
+
     private function obtenerDatosUsuario($correo)
     {
+        $correo = parent::escapeString((string)$correo);
         $query = "SELECT id,PASSWORD,Estado,NdeCliente FROM usuarios WHERE Usuario = '$correo' AND Nivel=4 AND ACTIVO=1 AND Estado='Activo'";
         $datos = parent::obtenerDatos($query);
         if (isset($datos[0]["id"])) {
