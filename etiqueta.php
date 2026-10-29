@@ -355,6 +355,7 @@ class EtiquetaService extends conexion
         }
 
         $zpl  = "^XA\n";
+        $zpl .= "^PW812\n"; // 4 pulgadas a 203 dpi
         $zpl .= "^CI28\n";
         $zpl .= "^LH0,10\n";
 
@@ -367,8 +368,10 @@ class EtiquetaService extends conexion
         $zpl .= "^FO15,5^ILE:LOGOCADD.GRF^FS\n";
 
         // Destino grande arriba
-        $zpl .= "^FO250,25^A0N,50,50^FB570,1,-1^FH^FD" . $d_loc . "^FS\n";
-        $zpl .= "^FO700,25^A0N,50,50^FB570,1,-1^FH^FDCórdoba^FS\n";
+        // Localidad de destino centrada entre el contador de bulto y el borde. Antes iba en un
+        // bloque de 570 desde x=250 (pasaba el ancho de la etiqueta) y al lado un "Córdoba" fijo en
+        // x=700 que salía cortado y con cualquier destino.
+        $zpl .= "^FO190,25^A0N,50,50^FB610,1,0,C^FH^FD" . $d_loc . "^FS\n";
 
         // Datos destino
         $zpl .= "^FO190,70^A0N,20,20^FB570,1,-1^FDDestino^FS\n";
