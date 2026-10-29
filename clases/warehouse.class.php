@@ -220,6 +220,7 @@ class warehouse extends conexion
             "insertados"     => 0,
             "duplicados"     => 0,
             "no_encontrados" => [],
+            "ambiguos"       => [],
             "errores"        => []
         ];
 
@@ -247,14 +248,16 @@ class warehouse extends conexion
                          AND Haber=0
                          LIMIT 1";
             } else {
-                $query_tc = "SELECT id, Recorrido, CodigoSeguimiento, Wepoint_c
+                // LIMIT 2: el código (número de pedido del cliente) se repite entre clientes
+                // (IGALFER y VENEX, por ejemplo); si hay dos pendientes no se marca ninguno a ciegas.
+                $query_tc = "SELECT id, Recorrido, CodigoSeguimiento, Wepoint_c, RazonSocial
                          FROM TransClientes
                          WHERE Wepoint_c='" . $this->escape($new_codigo) . "'
                          AND Eliminado=0
                          AND Entregado=0
                          AND Devuelto=0
                          AND Haber=0
-                         LIMIT 1";
+                         LIMIT 2";
             }
 
             $recorrido = parent::obtenerDatos($query_tc);
@@ -263,6 +266,15 @@ class warehouse extends conexion
                 $resultado["no_encontrados"][] = $idCaddyActual > 0 ? $idCaddyActual : $new_codigo;
                 continue;
             }
+            if (count($recorrido) > 1) {
+                $resultado["ambiguos"][] = [
+                    "codigo" => $new_codigo,
+                    "envios" => array_map(fn($r) => $r['CodigoSeguimiento'] . ' (' . ($r['RazonSocial'] ?? '') . ')', $recorrido),
+                ];
+                error_log("warehouse: codigo $new_codigo ambiguo (" . implode(', ', array_column($recorrido, 'CodigoSeguimiento')) . "), no se marca");
+                continue;
+            }
+            $idTransClientes = (int)$recorrido[0]['id'];
 
             $CodigoProveedorReal = $recorrido[0]['Wepoint_c'] ?? $new_codigo;
             $Recorrido = $recorrido[0]['Recorrido'] ?? '';
@@ -290,7 +302,7 @@ class warehouse extends conexion
                         $resultado["duplicados"]++;
                     } elseif ($ok === true) {
                         $resultado["insertados"]++;
-                        $this->updateTransClientesWepointStatus($CodigoProveedorReal, "Ingreso");
+                        $this->updateTransClientesWepointStatus($idTransClientes, "Ingreso");
                     } else {
                         $resultado["errores"][] = [
                             "codigo" => $idCaddyActual > 0 ? $idCaddyActual : $CodigoProveedorReal,
@@ -319,7 +331,7 @@ class warehouse extends conexion
                         $resultado["duplicados"]++;
                     } elseif ($ok === true) {
                         $resultado["insertados"]++;
-                        $this->updateTransClientesWepointStatus($CodigoProveedorReal, "Egreso");
+                        $this->updateTransClientesWepointStatus($idTransClientes, "Egreso");
                     } else {
                         $resultado["errores"][] = [
                             "codigo" => $idCaddyActual > 0 ? $idCaddyActual : $CodigoProveedorReal,
@@ -345,7 +357,7 @@ class warehouse extends conexion
                         $resultado["duplicados"]++;
                     } elseif ($ok === true) {
                         $resultado["insertados"]++;
-                        $this->updateTransClientesWepointStatus($CodigoProveedorReal, "Crossdock");
+                        $this->updateTransClientesWepointStatus($idTransClientes, "Crossdock");
                     } else {
                         $resultado["errores"][] = [
                             "codigo" => $idCaddyActual > 0 ? $idCaddyActual : $CodigoProveedorReal,
@@ -355,7 +367,7 @@ class warehouse extends conexion
                 }
 
                 if ($status === 'send') {
-                    $updated = $this->updateTransClientesWepointStatus($CodigoProveedorReal, "Enviado");
+                    $updated = $this->updateTransClientesWepointStatus($idTransClientes, "Enviado");
 
                     if (!$updated) {
                         $resultado["errores"][] = [
@@ -438,7 +450,9 @@ class warehouse extends conexion
         return $id ? true : false;
     }
 
-    private function updateTransClientesWepointStatus(string $wepoint_c, string $status): bool
+    // Por id del envío encontrado arriba (antes volvía a buscar por Wepoint_c con LIMIT 1 y podía
+    // caer en otra fila con el mismo código).
+    private function updateTransClientesWepointStatus(int $idTransClientes, string $status): bool
     {
         $fecha = date('Y-m-d');
         $hora  = date('H:i:s');
@@ -447,7 +461,7 @@ class warehouse extends conexion
                          SET Wepoint_f='" . $this->escape($fecha) . "',
                              Wepoint_h='" . $this->escape($hora) . "',
                              Wepoint_status='" . $this->escape($status) . "'
-                         WHERE Wepoint_c='" . $this->escape($wepoint_c) . "'
+                         WHERE id=" . $idTransClientes . "
                          AND Entregado=0
                          AND Eliminado=0
                          AND Devuelto=0
