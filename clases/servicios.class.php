@@ -10,6 +10,7 @@ if (function_exists('opcache_invalidate')) {
 // require_once "../conexion/conexion.php";
 require_once "respuestas.class.php";
 require_once "pricing.class.php";
+require_once __DIR__ . "/acentos.php";
 
 class servicios extends conexion
 {
@@ -592,8 +593,9 @@ class servicios extends conexion
         $this->idClienteOrigen        = $ClienteOrigen[0]['id'];
         $this->DireccionClienteOrigen = $ClienteOrigen[0]['Direccion'];
 
-        $this->nombre    = $datos['NombreCompleto'];
-        $this->direccion = $datos['Direccion'];
+        // Acentos y eñes que algunos clientes mandan como "?" (clases/acentos.php)
+        $this->nombre    = Acentos::reparar($datos['NombreCompleto']);
+        $this->direccion = Acentos::reparar($datos['Direccion']);
         // FIX (2026-09-15, reportado con datos de IGALFER): el campo "Ciudad"
         // que mandan los clientes por API no es confiable - llega con el
         // nombre de la CALLE en vez de la ciudad ("San Juan 462" -> Ciudad
