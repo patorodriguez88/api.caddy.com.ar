@@ -1,3 +1,6 @@
 # Credenciales que existen solo en el servidor (nunca al repo)
 conexion/andreani_config.php
 conexion/tiendanube_config.php
+
+# Log de logins rechazados por formato (solo en el servidor)
+conexion/log_auth*.log
