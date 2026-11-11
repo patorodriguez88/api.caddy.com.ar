@@ -16,8 +16,15 @@ class auth extends conexion
         $datos = json_decode($json, true);
 
         if (!isset($datos['usuario']) || !isset($datos["password"])) {
-            //error con los campos
-            return $_respustas->error_400();
+            // Se dice el motivo concreto (sin mostrar la clave): con un 400 genérico el cliente no
+            // sabe si es la clave, la codificación o cómo arma el pedido (caso VENEX 11/11).
+            $motivo = $this->motivoCuerpoInvalido((string) $json, $datos);
+            $usuarioLog = is_array($datos) ? ($datos['usuario'] ?? null) : null;
+            if ($usuarioLog === null && preg_match('/"usuario"\s*:\s*"([^"]{1,100})"|usuario=([^&]{1,100})/', (string) $json, $m)) {
+                $usuarioLog = urldecode($m[2] ?? '') ?: $m[1]; // solo el usuario, para saber de qué cliente es
+            }
+            $this->logAuth($motivo, $usuarioLog, strlen((string) $json));
+            return $_respustas->error_400($motivo);
         } else {
             //todo esta bien 
             $usuario = $datos['usuario'];
@@ -74,6 +81,46 @@ class auth extends conexion
                 return $_respustas->error_200("El usuaro $usuario  no existe ");
             }
         }
+    }
+
+    private function motivoCuerpoInvalido(string $cuerpo, $datos): string
+    {
+        if (trim($cuerpo) === '') {
+            return 'El pedido llegó sin cuerpo: se espera JSON {"usuario":"...","password":"..."}';
+        }
+        if (!is_array($datos)) {
+            if (!mb_check_encoding($cuerpo, 'UTF-8')) {
+                return 'El cuerpo no está en UTF-8: si la clave o el usuario tienen ñ o acentos, hay que mandarlos en UTF-8';
+            }
+            $tipo = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? ''));
+            parse_str($cuerpo, $form);
+            if (str_contains($tipo, 'form') || isset($form['usuario']) || isset($form['password'])) {
+                return 'Llegó como formulario (usuario=...&password=...); se espera JSON {"usuario":"...","password":"..."} con Content-Type: application/json';
+            }
+            return 'El cuerpo no es un JSON válido (' . json_last_error_msg() . '): si la clave tiene comillas (") o barras (\\), hay que escaparlas; conviene armar el JSON con json_encode o equivalente';
+        }
+        $faltan = array_filter(['usuario', 'password'], fn($c) => !isset($datos[$c]));
+        return 'Falta el campo ' . implode(' y ', $faltan) . ' en el JSON';
+    }
+
+    // Registro de logins rechazados por formato, para diagnosticar sin pedirle la clave a nadie.
+    // Nunca se guarda el cuerpo. conexion/ y *.log están bloqueados desde afuera por .htaccess.
+    private function logAuth(string $motivo, $usuario, int $largo): void
+    {
+        $archivo = __DIR__ . '/../conexion/log_auth.log';
+        if (@filesize($archivo) > 2 * 1024 * 1024) {
+            @rename($archivo, __DIR__ . '/../conexion/log_auth_' . date('Ymd_His') . '.log');
+        }
+        $linea = [
+            'fecha' => date('Y-m-d H:i:s'),
+            'ip' => $_SERVER['HTTP_X_FORWARDED_FOR'] ?? ($_SERVER['REMOTE_ADDR'] ?? ''),
+            'content_type' => $_SERVER['CONTENT_TYPE'] ?? '',
+            'ua' => substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 120),
+            'largo' => $largo,
+            'usuario' => is_scalar($usuario) ? (string) $usuario : null,
+            'motivo' => $motivo,
+        ];
+        @file_put_contents($archivo, json_encode($linea, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) . PHP_EOL, FILE_APPEND);
     }
 
     // Las cuentas nuevas (registro y recupero de la plataforma) guardan password_hash(); las viejas, md5.
