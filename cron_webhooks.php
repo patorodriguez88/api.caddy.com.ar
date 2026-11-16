@@ -114,6 +114,8 @@ foreach ($pendientes as $row) {
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_CUSTOMREQUEST  => 'POST',
         CURLOPT_POSTFIELDS     => $payload,
+        // Sin User-Agent, el firewall de varios hostings (el de MeFaltaUno, por ejemplo) responde 406
+        CURLOPT_USERAGENT      => 'Caddy-Webhook/1.0 (+https://www.caddy.com.ar)',
         CURLOPT_HTTPHEADER     => [
             'x-caddy-webhook-token: ' . $token,
             'Content-Type: application/json',
