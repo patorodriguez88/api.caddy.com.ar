@@ -1078,7 +1078,8 @@ class servicios extends conexion
             if (
                 $enviar_mail &&
                 !empty($this->email) &&
-                filter_var($this->email, FILTER_VALIDATE_EMAIL)
+                filter_var($this->email, FILTER_VALIDATE_EMAIL) &&
+                $this->origenAvisaDestinatario()
             ) {
                 $this->enviar_mail();
             }
@@ -1142,6 +1143,18 @@ class servicios extends conexion
     }
 
 
+
+    // El cliente puede pedir que Caddy no les escriba a sus destinatarios (Clientes.AvisarDestinatario = 0, en
+    // Clientes → Webhook del sistema): manda sus propios avisos. Sin la columna, se avisa como siempre.
+    private function origenAvisaDestinatario(): bool
+    {
+        try {
+            $r = parent::obtenerDatos("SELECT AvisarDestinatario FROM Clientes WHERE id = '" . (int)$this->idClienteOrigen . "' LIMIT 1");
+            return empty($r) || (int)$r[0]['AvisarDestinatario'] !== 0;
+        } catch (Throwable $e) {
+            return true;
+        }
+    }
 
     private function enviar_mail()
     {
