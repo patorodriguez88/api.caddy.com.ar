@@ -27,6 +27,9 @@ class servicios extends conexion
     private $Observaciones = "";
     private $Observaciones_clean = "";
     private $idproveedor = "";
+    // N° de cliente del destinatario en el sistema del remitente (Dinter vía Wepoint: "0632"). Con él el
+    // destinatario se busca por Relacion + Clientes.idProveedor en vez de nombre + dirección. null = no vino.
+    private $idProveedorDestino = null;
     private $pato = "";
     private $ClienteOrigen = "";
     private $idClienteOrigen = "";
@@ -612,6 +615,15 @@ class servicios extends conexion
         if (isset($datos['Dni'])) {
             $this->dni        = $datos['Dni'];
         }
+        // Opcional. Clientes.idProveedor es INT: "0632" se guarda y se busca como 632.
+        if (isset($datos['idProveedorDestino']) && trim((string)$datos['idProveedorDestino']) !== '') {
+            $codigoDestino = trim((string)$datos['idProveedorDestino']);
+            // 0 / "0000" no: es el idProveedor de los clientes que no tienen número (irían a uno cualquiera)
+            if (!preg_match('/^\d{1,9}$/', $codigoDestino) || (int)$codigoDestino === 0) {
+                return $_respuestas->error_400('idProveedorDestino tiene que ser el número de cliente, solo dígitos y distinto de 0 (ej. "0632").');
+            }
+            $this->idProveedorDestino = (int)$codigoDestino;
+        }
         if (isset($datos['Telefono'])) {
             $this->telefono   = $datos['Telefono'];
         }
@@ -901,6 +913,65 @@ class servicios extends conexion
         }
     }
 
+    /**
+     * Destinatario por N° de cliente del remitente (idProveedorDestino): Relacion = cliente origen y
+     * Clientes.idProveedor = código. Si existe se usa esa fila y se le actualiza solo a ella lo que cambió
+     * (nombre, dirección, ciudad, CP, teléfono, mail, CUIT, observaciones); si no, se crea con esa Relacion
+     * e idProveedor. Con duplicados gana el más nuevo.
+     */
+    private function clienteDestinoPorCodigo(): int
+    {
+        $relacion = (int)$this->idClienteOrigen;
+        $codigo   = (int)$this->idProveedorDestino;
+        if ($codigo <= 0) {
+            return 0; // post() ya lo rechaza; por las dudas, nunca se busca por 0
+        }
+        $r = parent::obtenerDatos("SELECT id,nombrecliente,Direccion,Ciudad,CodigoPostal,Telefono,Mail,Cuit,Observaciones FROM Clientes
+            WHERE Relacion = '" . $relacion . "' AND idProveedor = " . $codigo . " AND Eliminado = 0 ORDER BY id DESC LIMIT 2");
+        if ($r && count($r) > 1) {
+            // Número repetido entre clientes del remitente: se usa el más nuevo, queda en el log para limpiarlo
+            error_log("servicios idProveedorDestino repetido: Relacion $relacion, idProveedor $codigo, ids " . $r[0]['id'] . ', ' . $r[1]['id'] . ' (se usó ' . $r[0]['id'] . ')');
+        }
+
+        $nuevos = [
+            'nombrecliente' => (string)$this->nombre,
+            'Direccion'     => (string)$this->direccion,
+            'Ciudad'        => (string)$this->ciudad,
+            'CodigoPostal'  => (string)$this->codigoPostal,
+            'Telefono'      => (string)$this->telefono,
+            'Mail'          => (string)$this->email,
+            'Cuit'          => (string)$this->dni,
+        ];
+        if ($this->Observaciones_clean !== null && $this->Observaciones_clean !== '') {
+            $nuevos['Observaciones'] = (string)$this->Observaciones_clean;
+        }
+
+        if ($r) {
+            $id = (int)$r[0]['id'];
+            $set = [];
+            foreach ($nuevos as $campo => $valor) {
+                // Solo lo que vino y cambió: un dato vacío no borra el que ya está
+                if (trim($valor) !== '' && (string)$r[0][$campo] !== $valor) {
+                    $set[] = "`$campo` = '" . parent::escapar($valor) . "'";
+                }
+            }
+            if ($set) {
+                parent::nonQuery("UPDATE Clientes SET " . implode(', ', $set) . " WHERE id = '" . $id . "' LIMIT 1");
+            }
+            return $id;
+        }
+
+        $tel = parent::escapar($nuevos['Telefono']);
+        $id = (int)parent::nonQueryId("INSERT INTO Clientes (NdeCliente,nombrecliente,Direccion,Ciudad,Telefono,Celular,Celular2,Cuit,Relacion,idProveedor,Pais,Mail,CodigoPostal,Observaciones) VALUES
+            (NULL,'" . parent::escapar($nuevos['nombrecliente']) . "','" . parent::escapar($nuevos['Direccion']) . "','" . parent::escapar($nuevos['Ciudad']) . "',
+            '" . $tel . "','" . $tel . "','" . $tel . "','" . parent::escapar($nuevos['Cuit']) . "','" . $relacion . "'," . $codigo . ",'Argentina',
+            '" . parent::escapar($nuevos['Mail']) . "','" . parent::escapar($nuevos['CodigoPostal']) . "','" . parent::escapar((string)$this->Observaciones) . "')");
+        if ($id) {
+            parent::nonQuery("UPDATE Clientes SET NdeCliente = id WHERE id = '" . $id . "' LIMIT 1");
+        }
+        return $id;
+    }
+
     private function clienteOrigenRelacion($idUsuario, $idProveedor, $NombreOrigen, $DireccionOrigen)
     {
         // Copias escapadas solo para armar SQL; $NombreOrigen/$DireccionOrigen
@@ -931,10 +1002,14 @@ class servicios extends conexion
         } else {
 
             //COMO NO ENCONTRE EL CLIENTE RELACIONADO CONSULTO EN LA PRIMERA POSIBILIDAD CON NOMBRE Y DIRECCION...
-            $query = "SELECT nombrecliente,id,Direccion FROM Clientes WHERE nombrecliente = '" . $NombreOrigenSql . "' AND Direccion like '%" . $DireccionOrigenSql . "%'"; //utf8_decode
+            // Solo entre los clientes del usuario (su cliente y los relacionados): antes buscaba en todos y
+            // el UPDATE sin LIMIT podía pisar el idProveedor de clientes de otros remitentes.
+            $nde = (int)($resp0[0]['NdeCliente'] ?? 0);
+            $query = "SELECT nombrecliente,id,Direccion FROM Clientes WHERE nombrecliente = '" . $NombreOrigenSql . "' AND Direccion like '%" . $DireccionOrigenSql . "%'
+                AND (Relacion = '" . $nde . "' OR id = '" . $nde . "') AND Eliminado = 0 ORDER BY id DESC LIMIT 1";
             $resp1 = parent::obtenerDatos($query);
-            if ($resp1[0]['id']) {
-                $query = "UPDATE Clientes SET idProveedor = '" . $idProveedorSql . "' WHERE nombrecliente = '" . $NombreOrigenSql . "' AND Direccion like '%" . $DireccionOrigenSql . "%' ";
+            if (!empty($resp1[0]['id'])) {
+                $query = "UPDATE Clientes SET idProveedor = '" . $idProveedorSql . "' WHERE id = '" . (int)$resp1[0]['id'] . "' LIMIT 1";
                 $resp = parent::nonQuery($query);
                 if ($resp >= 1) {
                     return $resp1;
@@ -991,6 +1066,10 @@ class servicios extends conexion
         $ClienteDestinoSql          = parent::escapar($ClienteDestino);
 
         //BUSCO EL CLIENTE DESTINO
+        if ($this->idProveedorDestino !== null) {
+            // Por el N° de cliente que manda el remitente, dentro de sus clientes (Relacion)
+            $idClienteDestino = $this->clienteDestinoPorCodigo();
+        } else {
         $query = "SELECT id,Observaciones FROM Clientes WHERE nombrecliente = '" . $ClienteDestinoSql . "' AND Direccion = '" . $direccionSql . "' LIMIT 1";
         $resp = parent::obtenerDatos($query);
 
@@ -1011,17 +1090,18 @@ class servicios extends conexion
             }
         } else {
 
-            $query = "SELECT MAX(id)as id FROM Clientes";
-            $respmax = parent::obtenerDatos($query);
-
-            $NewidCliente = trim($respmax[0]['id']) + 1;
-
+            // NdeCliente = id del cliente: se completa después del INSERT (con MAX(id)+1 dos envíos
+            // simultáneos podían quedar con el mismo número)
             $query = "INSERT INTO Clientes (NdeCliente,nombrecliente,Direccion,Ciudad,Telefono,Celular,Celular2,Cuit,Relacion,Pais,Mail,CodigoPostal,Observaciones)VALUES
-    ('" . $NewidCliente . "','" . $ClienteDestinoSql . "','" . $direccionSql . "','" . $ciudadSql . "','" . parent::escapar($this->telefono) . "','" . parent::escapar($this->telefono) . "',
+    (NULL,'" . $ClienteDestinoSql . "','" . $direccionSql . "','" . $ciudadSql . "','" . parent::escapar($this->telefono) . "','" . parent::escapar($this->telefono) . "',
     '" . parent::escapar($this->telefono) . "','" . parent::escapar($this->dni) . "','" . parent::escapar($this->idClienteOrigen) . "','Argentina','" . parent::escapar($this->email) . "','" . parent::escapar($this->codigoPostal) . "','" . parent::escapar($this->Observaciones) . "')";
 
             $respclientes = parent::nonQueryId($query);
             $idClienteDestino = $respclientes;
+            if ($idClienteDestino) {
+                parent::nonQuery("UPDATE Clientes SET NdeCliente = id WHERE id = '" . (int)$idClienteDestino . "' LIMIT 1");
+            }
+        }
         }
 
         //INSERTO LA VENTA EN PREVENTA
