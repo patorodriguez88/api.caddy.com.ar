@@ -22,6 +22,7 @@ class RatesV2 extends conexion
     private $localidad = '';
     private $servicio = 1;        // 1=Retiro y Entrega, 3=FLEX
     private $cantidad = 1;
+    private $bonifica = true;     // Productos.BonificaCantidad del servicio cotizado
     private $valorDeclarado = 0.0;
     private $flex = 0;
 
@@ -151,7 +152,8 @@ class RatesV2 extends conexion
 
         $precioVenta = (float)$price[0]['PrecioVenta'];
         $cant = max(1, (int)$this->cantidad);
-        $tarifaTotal = Pricing::totalConDescuento(array_fill(0, $cant, $precioVenta));
+        $this->bonifica = Pricing::bonifica($price[0]); // también para insert_quote
+        $tarifaTotal = Pricing::totalConDescuento(array_fill(0, $cant, $precioVenta), $this->bonifica);
         $total = $tarifaTotal + $surePrice;
 
         if ($esCapital) {
@@ -274,7 +276,7 @@ class RatesV2 extends conexion
     public function insert_quote($id, $nombre, $price_title, $precio, $citydestination, $length, $width, $height, $weight, $distance, $send_date)
     {
         $date  = date('Y-m-d');
-        $Total = Pricing::totalConDescuento(array_fill(0, max(1, (int)$this->cantidad), (float)$precio));
+        $Total = Pricing::totalConDescuento(array_fill(0, max(1, (int)$this->cantidad), (float)$precio), $this->bonifica);
 
         $sqlstr = "INSERT INTO `Cotizaciones`(`Fecha`,`RazonSocial`, `NCliente`, `Cantidad`,`Precio`,`Total`,
              `LocalidadDestino`,`Ancho`, `Alto`, `Largo`, `Peso`,`Tarifa`,`EntregaEn`,`Kilometros`,`FechaEntrega`) 
@@ -294,7 +296,7 @@ class RatesV2 extends conexion
 
     public function rate_flex()
     {
-        $query = "SELECT id,Titulo,PrecioVenta,Kilometros,Seguro,Codigo FROM Productos WHERE Codigo='183'";
+        $query = "SELECT id,Titulo,PrecioVenta,Kilometros,Seguro,Codigo,BonificaCantidad FROM Productos WHERE Codigo='183'";
         $resp  = parent::obtenerDatos($query);
         return $resp ? $resp : 4;
     }
@@ -320,7 +322,7 @@ class RatesV2 extends conexion
         $dist = $resp_dist[0]['Km'];
         $dim  = (float)$length * (float)$width * (float)$height;
 
-        $query = "SELECT id,Titulo,MIN(PrecioVenta) AS PrecioVenta,Kilometros,Seguro,Codigo
+        $query = "SELECT id,Titulo,MIN(PrecioVenta) AS PrecioVenta,Kilometros,Seguro,Codigo,BonificaCantidad
               FROM Productos
               WHERE Grupo='Web' AND m3>='" . $dim . "' AND Kilometros>='" . $dist . "'";
         $resp = parent::obtenerDatos($query);

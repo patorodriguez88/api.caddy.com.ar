@@ -14,6 +14,19 @@
  */
 class Pricing
 {
+    /**
+     * ¿El servicio (fila de Productos) lleva la curva? Productos.BonificaCantidad = 0 lo apaga
+     * (switch "Bonifica por cantidad" en sistema > Servicios). Sin la columna, sí.
+     */
+    public static function bonifica(array $fila): bool
+    {
+        return !isset($fila['BonificaCantidad']) || (int)$fila['BonificaCantidad'] !== 0;
+    }
+
+    /**
+     * Cada bulto puede traer 'bonifica' => false (su servicio no lleva la curva): paga 100% y no
+     * ocupa lugar en la secuencia 100% / 0% / 50% de los demás.
+     */
     public static function aplicarDescuentoPorBulto(array $bultos, string $campoTarifa = 'tarifa'): array
     {
         if (count($bultos) === 0) {
@@ -31,7 +44,14 @@ class Pricing
             return $b['bulto'][$campoTarifa] <=> $a['bulto'][$campoTarifa];
         });
 
-        foreach ($indexados as $pos => &$item) {
+        $pos = -1;
+        foreach ($indexados as &$item) {
+            if (($item['bulto']['bonifica'] ?? true) === false) {
+                $item['porcentaje']     = 1.0;
+                $item['precioAplicado'] = round((float)$item['bulto'][$campoTarifa], 2);
+                continue;
+            }
+            $pos++;
             if ($pos === 0) {
                 $porcentaje = 1.0;
             } elseif ($pos === 1) {
@@ -64,9 +84,9 @@ class Pricing
      *
      * @param float[] $tarifas
      */
-    public static function totalConDescuento(array $tarifas): float
+    public static function totalConDescuento(array $tarifas, bool $bonifica = true): float
     {
-        $bultos       = array_map(fn($t) => ['tarifa' => (float)$t], $tarifas);
+        $bultos       = array_map(fn($t) => ['tarifa' => (float)$t, 'bonifica' => $bonifica], $tarifas);
         $conDescuento = self::aplicarDescuentoPorBulto($bultos, 'tarifa');
 
         $total = 0.0;

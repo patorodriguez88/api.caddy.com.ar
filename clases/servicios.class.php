@@ -496,6 +496,7 @@ class servicios extends conexion
 
             $bultosResueltos[] = [
                 'tarifa'         => (float)$price[0]['PrecioVenta'],
+                'bonifica'       => Pricing::bonifica($price[0]),
                 'titulo'         => $price[0]['Titulo'],
                 'length'         => $length,
                 'width'          => $width,
@@ -791,7 +792,7 @@ class servicios extends conexion
     public function rate_flex()
     {
 
-        $query = "SELECT id,Titulo,PrecioVenta,Kilometros FROM Productos WHERE Codigo='183'";
+        $query = "SELECT id,Titulo,PrecioVenta,Kilometros,BonificaCantidad FROM Productos WHERE Codigo='183'";
 
         if ($resp = parent::obtenerDatos($query)) {
 
@@ -830,7 +831,7 @@ class servicios extends conexion
 
             $dim = $length * $width * $height;
 
-            $query = "SELECT id,Titulo,MIN(PrecioVenta)as PrecioVenta,Kilometros FROM Productos WHERE Grupo='Web' AND m3>='" . $dim . "' AND Kilometros>='" . $dist . "'";
+            $query = "SELECT id,Titulo,MIN(PrecioVenta)as PrecioVenta,Kilometros,BonificaCantidad FROM Productos WHERE Grupo='Web' AND m3>='" . $dim . "' AND Kilometros>='" . $dist . "'";
 
             $resp = parent::obtenerDatos($query);
 
