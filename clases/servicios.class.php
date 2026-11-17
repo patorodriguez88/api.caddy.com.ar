@@ -916,7 +916,7 @@ class servicios extends conexion
     /**
      * Destinatario por N° de cliente del remitente (idProveedorDestino): Relacion = cliente origen y
      * Clientes.idProveedor = código. Si existe se usa esa fila y se le actualiza solo a ella lo que cambió
-     * (nombre, dirección, ciudad, CP, teléfono, mail, CUIT, observaciones); si no, se crea con esa Relacion
+     * (nombre, dirección, ciudad, CP, teléfono, mail, CUIT; las observaciones del cliente no se tocan); si no, se crea con esa Relacion
      * e idProveedor. Con duplicados gana el más nuevo.
      */
     private function clienteDestinoPorCodigo(): int
