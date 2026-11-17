@@ -916,7 +916,7 @@ class servicios extends conexion
     /**
      * Destinatario por N° de cliente del remitente (idProveedorDestino): Relacion = cliente origen y
      * Clientes.idProveedor = código. Si existe se usa esa fila y se le actualiza solo a ella lo que cambió
-     * (nombre, dirección, ciudad, CP, teléfono, mail, CUIT, observaciones); si no, se crea con esa Relacion
+     * (nombre, dirección, ciudad, CP, teléfono, mail, CUIT; las observaciones del cliente no se tocan); si no, se crea con esa Relacion
      * e idProveedor. Con duplicados gana el más nuevo.
      */
     private function clienteDestinoPorCodigo(): int
@@ -942,9 +942,8 @@ class servicios extends conexion
             'Mail'          => (string)$this->email,
             'Cuit'          => (string)$this->dni,
         ];
-        if ($this->Observaciones_clean !== null && $this->Observaciones_clean !== '') {
-            $nuevos['Observaciones'] = (string)$this->Observaciones_clean;
-        }
+        // Observaciones NO: son del envío (van a PreVenta). En el cliente quedan las indicaciones fijas del
+        // destinatario (ej. kioscos de Dinter: "4 caras - 2 noticias - 10 semanarios") y no se pisan.
 
         if ($r) {
             $id = (int)$r[0]['id'];
