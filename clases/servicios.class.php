@@ -942,9 +942,8 @@ class servicios extends conexion
             'Mail'          => (string)$this->email,
             'Cuit'          => (string)$this->dni,
         ];
-        if ($this->Observaciones_clean !== null && $this->Observaciones_clean !== '') {
-            $nuevos['Observaciones'] = (string)$this->Observaciones_clean;
-        }
+        // Observaciones NO: son del envío (van a PreVenta). En el cliente quedan las indicaciones fijas del
+        // destinatario (ej. kioscos de Dinter: "4 caras - 2 noticias - 10 semanarios") y no se pisan.
 
         if ($r) {
             $id = (int)$r[0]['id'];
