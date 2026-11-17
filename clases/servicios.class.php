@@ -618,8 +618,9 @@ class servicios extends conexion
         // Opcional. Clientes.idProveedor es INT: "0632" se guarda y se busca como 632.
         if (isset($datos['idProveedorDestino']) && trim((string)$datos['idProveedorDestino']) !== '') {
             $codigoDestino = trim((string)$datos['idProveedorDestino']);
-            if (!preg_match('/^\d{1,9}$/', $codigoDestino)) {
-                return $_respuestas->error_400('idProveedorDestino tiene que ser el número de cliente, solo dígitos (ej. "0632").');
+            // 0 / "0000" no: es el idProveedor de los clientes que no tienen número (irían a uno cualquiera)
+            if (!preg_match('/^\d{1,9}$/', $codigoDestino) || (int)$codigoDestino === 0) {
+                return $_respuestas->error_400('idProveedorDestino tiene que ser el número de cliente, solo dígitos y distinto de 0 (ej. "0632").');
             }
             $this->idProveedorDestino = (int)$codigoDestino;
         }
@@ -922,8 +923,15 @@ class servicios extends conexion
     {
         $relacion = (int)$this->idClienteOrigen;
         $codigo   = (int)$this->idProveedorDestino;
+        if ($codigo <= 0) {
+            return 0; // post() ya lo rechaza; por las dudas, nunca se busca por 0
+        }
         $r = parent::obtenerDatos("SELECT id,nombrecliente,Direccion,Ciudad,CodigoPostal,Telefono,Mail,Cuit,Observaciones FROM Clientes
-            WHERE Relacion = '" . $relacion . "' AND idProveedor = " . $codigo . " AND Eliminado = 0 ORDER BY id DESC LIMIT 1");
+            WHERE Relacion = '" . $relacion . "' AND idProveedor = " . $codigo . " AND Eliminado = 0 ORDER BY id DESC LIMIT 2");
+        if ($r && count($r) > 1) {
+            // Número repetido entre clientes del remitente: se usa el más nuevo, queda en el log para limpiarlo
+            error_log("servicios idProveedorDestino repetido: Relacion $relacion, idProveedor $codigo, ids " . $r[0]['id'] . ', ' . $r[1]['id'] . ' (se usó ' . $r[0]['id'] . ')');
+        }
 
         $nuevos = [
             'nombrecliente' => (string)$this->nombre,
